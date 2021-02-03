@@ -15,10 +15,10 @@ describe('CPUService', () => {
   });
 
   it('multiply correctly', () => {
-    service.AC = 0o400000;
-    service.multiply(0o400000);
+    service.AC = 0o777774;
+    service.multiply(0o000013);
 
-    expect(service.AC).toEqual(0o400000);
-    expect(service.IO).toEqual(0o000001);
+    expect(service.AC).toEqual(0o777777);
+    expect(service.IO).toEqual(0o777675);
   });
 });
