@@ -1,0 +1,17 @@
+export const MEM_SIZE = 0o10000;
+export const MASK_34 = 0o177777777777;
+export const MASK_18 = 0o777777;
+export const MASK_17 = 0o377777;
+export const MASK_12 = 0o7777;
+export const MASK_9 = 0o777;
+export const MASK_OPCODE = 0o76;
+export const MASK_1 = 0b1;
+export const POS_ZERO = 0o000000;
+export const NEG_ZERO = 0o777777;
+export const CLR_Y = 0o770000;
+export const CLR_INSTR = 0o007777;
+export const INSTR_MASK = 0o770000;
+export const AC_SAVE_ADDR = 0o100;
+export const SUB_ADDR = 0o101;
+export const SENSE_SWITCH_COUNT = 6;
+export const PROGRAM_FLAG_COUNT = 6;
