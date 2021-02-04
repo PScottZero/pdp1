@@ -47,14 +47,30 @@ export const SCR = 0o677;
 export const SCL = 0o667;
 
 // Skip Group
-// SZS 0o0010, 0o0020, ..., 0o0070
-// SZF 0o0001 to 0o0007
 export const SKIP_GROUP = 0o64;
 export const SZA = 0o0100;
 export const SPA = 0o0200;
 export const SMA = 0o0400;
 export const SZO = 0o1000;
 export const SPI = 0o2000;
+export const SZS_RANGE = [
+  0o0010,
+  0o0020,
+  0o0030,
+  0o0040,
+  0o0050,
+  0o0060,
+  0o0070,
+];
+export const SZF_RANGE = [
+  0o0001,
+  0o0002,
+  0o0003,
+  0o0004,
+  0o0005,
+  0o0006,
+  0o0007,
+];
 
 // Operate Group
 // CLF 0o0001 to 0o0007
@@ -67,6 +83,24 @@ export const CMA = 0o1000;
 export const HLT = 0o0400;
 export const CLA = 0o0200;
 export const NOP = 0o0000;
+export const CLF_RANGE = [
+  0o0001,
+  0o0002,
+  0o0003,
+  0o0004,
+  0o0005,
+  0o0006,
+  0o0007,
+];
+export const STF_RANGE = [
+  0o0011,
+  0o0012,
+  0o0013,
+  0o0014,
+  0o0015,
+  0o0016,
+  0o0017,
+];
 
 // IO
-export const;
+export const IOT = 0o72;

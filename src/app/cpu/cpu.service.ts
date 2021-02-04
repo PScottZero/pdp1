@@ -1,6 +1,14 @@
 import { Injectable } from '@angular/core';
-import * as constant from './cpu.constants';
-import * as instruction from './cpu.instructions';
+import * as instruction from './instructions';
+import * as helper from './helperFunctions';
+import * as mask from './masks';
+
+const MEM_SIZE = 0o10000;
+const NEG_ZERO = 0o777777;
+const AC_SAVE_ADDR = 0o100;
+const SUB_ADDR = 0o101;
+const SENSE_SWITCH_COUNT = 6;
+const PROGRAM_FLAG_COUNT = 6;
 
 @Injectable({
   providedIn: 'root',
@@ -8,9 +16,6 @@ import * as instruction from './cpu.instructions';
 export class CPUService {
   mem: number[]; // 4096 18-bit words
   PC: number; // Program Counter (12-bit)
-  MA: number; // Memory Address Register (12-bit)
-  IR: number; // Instruction Register (5-bit)
-  MB: number; // Memory Buffer Register (18-bit)
   AC: number; // Accumulator (18-bit)
   IO: number; // In-Out Register (18-bit)
   overflow: boolean;
@@ -18,19 +23,17 @@ export class CPUService {
   programFlags: boolean[];
 
   constructor() {
-    this.mem = Array<number>(constant.MEM_SIZE).fill(0);
-    this.senseSwitches = Array<boolean>(constant.SENSE_SWITCH_COUNT).fill(
-      false
-    );
-    this.programFlags = Array<boolean>(constant.PROGRAM_FLAG_COUNT).fill(false);
+    this.mem = Array<number>(MEM_SIZE).fill(0);
+    this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
+    this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
   }
 
   decode(): void {
     const word = this.mem[this.PC];
-    const opcode = (word >> 12) & constant.MASK_OPCODE;
-    const shiftOpcode = (word >> 9) & constant.MASK_9;
-    const indirect = (word >> 12) & constant.MASK_1;
-    const Y = word & constant.MASK_12;
+    const opcode = (word >> 12) & mask.MASK_OPCODE;
+    const shiftOpcode = (word >> 9) & mask.MASK_9;
+    const indirect = (word >> 12) & mask.MASK_1;
+    const Y = word & mask.MASK_12;
 
     switch (opcode) {
       // Add
@@ -72,7 +75,7 @@ export class CPUService {
       // isp Y
       case instruction.ISP:
         this.incY(Y);
-        if (this.isPositive(this.AC)) {
+        if (helper.isPositive(this.AC)) {
           this.incPC();
         }
         this.incPC();
@@ -144,7 +147,7 @@ export class CPUService {
       // Deposit Zero in Memory
       // dzm Y
       case instruction.DZM:
-        this.writeInstr(Y, constant.POS_ZERO);
+        this.writeInstr(Y, 0);
         this.incPC();
         break;
 
@@ -164,7 +167,7 @@ export class CPUService {
       // jsp Y
       case instruction.JSP:
         this.incPC();
-        this.setAC(this.PC | (this.overflowAsBit() << 17));
+        this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
         this.setPC(Y);
         break;
 
@@ -172,16 +175,16 @@ export class CPUService {
         if (!indirect) {
           // Call Subroutine
           // cal Y
-          this.write(constant.AC_SAVE_ADDR, this.AC);
+          this.write(AC_SAVE_ADDR, this.AC);
           this.incPC();
-          this.setAC(this.PC | (this.overflowAsBit() << 17));
-          this.setPC(constant.SUB_ADDR);
+          this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
+          this.setPC(SUB_ADDR);
         } else {
           // Jump and Deposit Accumulator
           // jda Y
           this.write(Y, this.AC);
           this.incPC();
-          this.setAC(this.PC | (this.overflowAsBit() << 17));
+          this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
           this.setPC(Y);
         }
         break;
@@ -221,73 +224,73 @@ export class CPUService {
           // Rotate Accumulator Right
           // rar N
           case instruction.RAR:
-            this.setAC(this.rotateRight(this.AC, this.onesCount(word)));
+            this.setAC(this.rotateRight(this.AC, helper.onesCount(word)));
             break;
 
           // Rotate Accumulator Left
           // ral N
           case instruction.RAL:
-            this.setAC(this.rotateLeft(this.AC, this.onesCount(word)));
+            this.setAC(this.rotateLeft(this.AC, helper.onesCount(word)));
             break;
 
           // Shift Accumulator Right
           // sar N
           case instruction.SAR:
-            this.setAC(this.shiftRight(this.AC, this.onesCount(word)));
+            this.setAC(this.shiftRight(this.AC, helper.onesCount(word)));
             break;
 
           // Shift Accumulator Left
           // sal N
           case instruction.SAL:
-            this.setAC(this.shiftLeft(this.AC, this.onesCount(word)));
+            this.setAC(this.shiftLeft(this.AC, helper.onesCount(word)));
             break;
 
           // Rotate In-Out Register Right
           // rir N
           case instruction.RIR:
-            this.setIO(this.rotateRight(this.IO, this.onesCount(word)));
+            this.setIO(this.rotateRight(this.IO, helper.onesCount(word)));
             break;
 
           // Rotate In-Out Register Left
           // ril N
           case instruction.RIL:
-            this.setIO(this.rotateLeft(this.IO, this.onesCount(word)));
+            this.setIO(this.rotateLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Shift In-Out Register Right
           // sir N
           case instruction.SIR:
-            this.setIO(this.shiftLeft(this.IO, this.onesCount(word)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Shift In-Out Register Left
           // sil N
           case instruction.SIL:
-            this.setIO(this.shiftLeft(this.IO, this.onesCount(word)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Rotate AC and IO Right
           // rcr N
           case instruction.RCR:
-            this.rotateACIORight(this.onesCount(word));
+            this.rotateACIORight(helper.onesCount(word));
             break;
 
           // Rotate AC and IO Left
           // rcl N
           case instruction.RCL:
-            this.rotateACIOLeft(this.onesCount(word));
+            this.rotateACIOLeft(helper.onesCount(word));
             break;
 
           // Shift AC and IO Right
           // scr N
           case instruction.SCR:
-            this.shiftACIORight(this.onesCount(word));
+            this.shiftACIORight(helper.onesCount(word));
             break;
 
           // Shift AC and IO Left
           // scl N
           case instruction.SCL:
-            this.shiftACIOLeft(this.onesCount(word));
+            this.shiftACIOLeft(helper.onesCount(word));
             break;
 
           default:
@@ -312,7 +315,7 @@ export class CPUService {
           // Skip on Plus Accumulator
           // spa
           case instruction.SPA:
-            if (this.isPositive(this.AC)) {
+            if (helper.isPositive(this.AC)) {
               this.incPC();
             }
             break;
@@ -320,7 +323,7 @@ export class CPUService {
           // Skip on Minus Accumulator
           // sma
           case instruction.SMA:
-            if (!this.isPositive(this.AC)) {
+            if (!helper.isPositive(this.AC)) {
               this.incPC();
             }
             break;
@@ -337,37 +340,19 @@ export class CPUService {
           // Skip on Plus In-Out Register
           // spi
           case instruction.SPI:
-            if (this.isPositive(this.IO)) {
+            if (helper.isPositive(this.IO)) {
               this.incPC();
             }
             break;
 
           default:
-            if (Y <= 7) {
-              if (Y <= 6 && !this.programFlags[Y]) {
-                this.incPC();
-              } else {
-                let allFlags = false;
-                this.programFlags.forEach(
-                  (flagValue) => (allFlags ||= flagValue)
-                );
-                if (!allFlags) {
-                  this.incPC();
-                }
-              }
+            if (instruction.SZS_RANGE.includes(Y)) {
+              this.senseSwitchSkip(Y);
+            } else if (instruction.SZF_RANGE.includes(Y)) {
+              this.programFlagSkip(Y);
             } else {
-              const switchIndex = (Y >> 3) & constant.MASK_1;
-              if (switchIndex <= 6 && !this.senseSwitches[switchIndex]) {
-                this.incPC();
-              } else {
-                let allSwitches = false;
-                this.senseSwitches.forEach(
-                  (switchValue) => (allSwitches ||= switchValue)
-                );
-                if (!allSwitches) {
-                  this.incPC();
-                }
-              }
+              console.log(`Instruction Not Implemented: ${word}`);
+              break;
             }
             break;
         }
@@ -381,83 +366,83 @@ export class CPUService {
   }
 
   read(addr: number): number {
-    return this.mem[addr & constant.MASK_12] & constant.MASK_18;
+    return this.mem[addr & mask.MASK_12] & mask.MASK_18;
   }
 
   write(addr: number, value: number): void {
-    this.mem[addr & constant.MASK_12] = value & constant.MASK_18;
+    this.mem[addr & mask.MASK_12] = value & mask.MASK_18;
   }
 
   writeInstr(addr: number, value: number): void {
-    this.mem[addr & constant.MASK_12] &= constant.CLR_INSTR;
-    this.mem[addr & constant.MASK_12] |= value & constant.INSTR_MASK;
+    this.mem[addr & mask.MASK_12] &= mask.CLR_INSTR;
+    this.mem[addr & mask.MASK_12] |= value & mask.INSTR_MASK;
   }
 
   writeY(addr: number, value: number): void {
-    this.mem[addr & constant.MASK_12] &= constant.CLR_Y;
-    this.mem[addr & constant.MASK_12] |= value & constant.MASK_12;
+    this.mem[addr & mask.MASK_12] &= mask.CLR_Y;
+    this.mem[addr & mask.MASK_12] |= value & mask.MASK_12;
   }
 
   add(value: number): void {
     let result = this.AC + value;
-    result += (result >> 18) & constant.MASK_1;
+    result += (result >> 18) & mask.MASK_1;
     this.overflow =
-      (this.isPositive(this.AC) &&
-        this.isPositive(value) &&
-        !this.isPositive(result)) ||
-      (!this.isPositive(this.AC) &&
-        !this.isPositive(value) &&
-        this.isPositive(result));
+      (helper.isPositive(this.AC) &&
+        helper.isPositive(value) &&
+        !helper.isPositive(result)) ||
+      (!helper.isPositive(this.AC) &&
+        !helper.isPositive(value) &&
+        helper.isPositive(result));
     this.setAC(result);
-    if (this.AC == constant.NEG_ZERO) {
-      this.AC = constant.POS_ZERO;
+    if (this.AC == NEG_ZERO) {
+      this.AC = 0;
     }
   }
 
   subtract(value: number): void {
-    if (!(value == constant.POS_ZERO && this.AC == constant.NEG_ZERO)) {
-      this.add(~value & constant.MASK_18);
+    if (!(value == 0 && this.AC == NEG_ZERO)) {
+      this.add(~value & mask.MASK_18);
     }
   }
 
   multiply(value: number): void {
-    let magnitude = this.magnitude(this.AC) * this.magnitude(value);
-    const sign = this.sign(this.AC) ^ this.sign(value);
+    let magnitude = helper.magnitude(this.AC) * helper.magnitude(value);
+    const sign = helper.sign(this.AC) ^ helper.sign(value);
     if (sign == 1) {
       magnitude = ~magnitude;
     }
-    this.setAC(this.rightShift(magnitude, 17));
-    this.setIO(((magnitude & constant.MASK_17) << 1) | sign);
-    if (this.AC == constant.NEG_ZERO && this.IO == constant.NEG_ZERO) {
-      this.setAC(constant.POS_ZERO);
-      this.setIO(constant.POS_ZERO);
+    this.setAC(helper.rightShift(magnitude, 17));
+    this.setIO(((magnitude & mask.MASK_17) << 1) | sign);
+    if (this.AC == NEG_ZERO && this.IO == NEG_ZERO) {
+      this.setAC(0);
+      this.setIO(0);
     }
   }
 
   divide(value: number): void {
-    if (this.magnitude(this.AC) < this.magnitude(value)) {
+    if (helper.magnitude(this.AC) < helper.magnitude(value)) {
       let dividend =
-        this.leftShift(this.AC & constant.MASK_17, 17) |
-        ((this.IO >> 1) & constant.MASK_17);
-      if (!this.isPositive(this.AC)) {
-        dividend = ~dividend & constant.MASK_34;
+        helper.leftShift(this.AC & mask.MASK_17, 17) |
+        ((this.IO >> 1) & mask.MASK_17);
+      if (!helper.isPositive(this.AC)) {
+        dividend = ~dividend & mask.MASK_34;
       }
-      let magnitude = dividend / this.magnitude(value);
-      let remainder = dividend % this.magnitude(value);
-      const sign = this.sign(this.AC) ^ this.sign(value);
+      let magnitude = dividend / helper.magnitude(value);
+      let remainder = dividend % helper.magnitude(value);
+      const sign = helper.sign(this.AC) ^ helper.sign(value);
       if (sign == 1) {
         magnitude = ~magnitude;
       }
-      if (this.sign(this.AC) == 1) {
+      if (helper.sign(this.AC) == 1) {
         remainder = ~remainder;
       }
       this.setAC(magnitude);
       this.setIO(remainder);
-      if (this.AC == constant.NEG_ZERO) {
-        this.setAC(constant.POS_ZERO);
+      if (this.AC == NEG_ZERO) {
+        this.setAC(0);
       }
-      if (this.IO == constant.NEG_ZERO) {
-        this.setIO(constant.POS_ZERO);
+      if (this.IO == NEG_ZERO) {
+        this.setIO(0);
       }
       this.incPC();
     }
@@ -465,127 +450,115 @@ export class CPUService {
 
   rotateRight(value: number, count: number): number {
     for (let _ = 0; _ < count; _++) {
-      const bit0 = value & constant.MASK_1;
-      value = (bit0 << 17) | ((value >> 1) & constant.MASK_17);
+      const bit0 = value & mask.MASK_1;
+      value = (bit0 << 17) | ((value >> 1) & mask.MASK_17);
     }
     return value;
   }
 
   rotateACIORight(count: number): void {
     for (let _ = 0; _ < count; _++) {
-      const AC0 = this.AC & constant.MASK_1;
-      const IO0 = this.IO & constant.MASK_1;
-      this.setAC((IO0 << 17) | ((this.AC >> 1) & constant.MASK_17));
-      this.setIO((AC0 << 17) | ((this.IO >> 1) & constant.MASK_17));
+      const AC0 = this.AC & mask.MASK_1;
+      const IO0 = this.IO & mask.MASK_1;
+      this.setAC((IO0 << 17) | ((this.AC >> 1) & mask.MASK_17));
+      this.setIO((AC0 << 17) | ((this.IO >> 1) & mask.MASK_17));
     }
   }
 
   rotateLeft(value: number, count: number): number {
     for (let _ = 0; _ < count; _++) {
-      const bit7 = (value >> 17) & constant.MASK_1;
-      value = ((value << 1) & constant.MASK_18) | bit7;
+      const bit7 = (value >> 17) & mask.MASK_1;
+      value = ((value << 1) & mask.MASK_18) | bit7;
     }
     return value;
   }
 
   rotateACIOLeft(count: number): void {
     for (let _ = 0; _ < count; _++) {
-      const AC7 = (this.AC >> 17) & constant.MASK_1;
-      const IO7 = (this.IO >> 17) & constant.MASK_1;
-      this.setAC(((this.AC << 1) & constant.MASK_18) | IO7);
-      this.setIO(((this.IO << 1) & constant.MASK_18) | AC7);
+      const AC7 = (this.AC >> 17) & mask.MASK_1;
+      const IO7 = (this.IO >> 17) & mask.MASK_1;
+      this.setAC(((this.AC << 1) & mask.MASK_18) | IO7);
+      this.setIO(((this.IO << 1) & mask.MASK_18) | AC7);
     }
   }
 
   shiftRight(value: number, count: number): number {
     for (let _ = 0; _ < count; _++) {
-      const sign = this.sign(value);
-      value = (sign << 17) | ((value >> 1) & constant.MASK_17);
+      const sign = helper.sign(value);
+      value = (sign << 17) | ((value >> 1) & mask.MASK_17);
     }
     return value;
   }
 
   shiftACIORight(count: number): void {
     for (let _ = 0; _ < count; _++) {
-      const sign = this.sign(this.AC);
-      const AC0 = this.AC & constant.MASK_1;
-      this.setAC((sign << 17) | ((this.AC >> 1) & constant.MASK_17));
-      this.setIO((AC0 << 17) | ((this.IO >> 1) & constant.MASK_17));
+      const sign = helper.sign(this.AC);
+      const AC0 = this.AC & mask.MASK_1;
+      this.setAC((sign << 17) | ((this.AC >> 1) & mask.MASK_17));
+      this.setIO((AC0 << 17) | ((this.IO >> 1) & mask.MASK_17));
     }
   }
 
   shiftLeft(value: number, count: number): number {
-    return (value << count) & constant.MASK_18;
+    return (value << count) & mask.MASK_18;
   }
 
   shiftACIOLeft(count: number): void {
     for (let _ = 0; _ < count; _++) {
-      const IO7 = (this.IO >> 17) & constant.MASK_1;
-      this.setAC(((this.AC << 1) & constant.MASK_18) | IO7);
-      this.setIO((this.IO << 1) & constant.MASK_18);
+      const IO7 = (this.IO >> 17) & mask.MASK_1;
+      this.setAC(((this.AC << 1) & mask.MASK_18) | IO7);
+      this.setIO((this.IO << 1) & mask.MASK_18);
     }
   }
 
   incY(Y: number): void {
     this.setAC(this.read(Y) + 1);
-    if (this.AC == constant.NEG_ZERO) {
-      this.setAC(constant.POS_ZERO);
+    if (this.AC == NEG_ZERO) {
+      this.setAC(0);
     }
     this.write(this.AC, Y);
   }
 
-  isPositive(value: number): boolean {
-    return this.sign(value) == 0;
-  }
-
-  rightShift(value: number, shift: number): number {
-    return Math.floor(value / Math.pow(2, shift));
-  }
-
-  leftShift(value: number, shift: number): number {
-    return value * Math.pow(2, shift);
-  }
-
-  magnitude(value: number): number {
-    if (this.isPositive(value)) {
-      return value;
+  programFlagSkip(Y: number): void {
+    if (Y <= 6 && !this.programFlags[Y]) {
+      this.incPC();
     } else {
-      return ~value & constant.MASK_17;
+      let allFlags = false;
+      this.programFlags.forEach((flagValue) => (allFlags ||= flagValue));
+      if (!allFlags) {
+        this.incPC();
+      }
     }
   }
 
-  sign(value: number): number {
-    return (value >> 17) & constant.MASK_1;
+  senseSwitchSkip(Y: number): void {
+    const switchIndex = (Y >> 3) & mask.MASK_1;
+    if (switchIndex <= 6 && !this.senseSwitches[switchIndex]) {
+      this.incPC();
+    } else {
+      let allSwitches = false;
+      this.senseSwitches.forEach(
+        (switchValue) => (allSwitches ||= switchValue)
+      );
+      if (!allSwitches) {
+        this.incPC();
+      }
+    }
+  }
+
+  setAC(value: number): void {
+    this.AC = value & mask.MASK_18;
+  }
+
+  setIO(value: number): void {
+    this.IO = value & mask.MASK_18;
+  }
+
+  setPC(value: number): void {
+    this.PC = value & mask.MASK_12;
   }
 
   incPC(): void {
     this.setPC(this.PC + 1);
-  }
-
-  setAC(value: number): void {
-    this.AC = value & constant.MASK_18;
-  }
-
-  setIO(value: number): void {
-    this.IO = value & constant.MASK_18;
-  }
-
-  setPC(value: number): void {
-    this.PC = value & constant.MASK_12;
-  }
-
-  overflowAsBit(): number {
-    return this.overflow ? 1 : 0;
-  }
-
-  onesCount(value: number): number {
-    let count = 0;
-    for (let _ = 0; _ < 9; _++) {
-      if (value % 2 == 1) {
-        count++;
-      }
-      value >>= 1;
-    }
-    return count;
   }
 }
