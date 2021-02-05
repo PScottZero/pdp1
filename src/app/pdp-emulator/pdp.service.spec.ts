@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { CPUService } from './cpu.service';
+import { PDPService } from './pdp.service';
 
 describe('CPUService', () => {
-  let service: CPUService;
+  let service: PDPService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(CPUService);
+    service = TestBed.inject(PDPService);
   });
 
   it('should be created', () => {

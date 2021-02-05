@@ -1,0 +1,18 @@
+#header {
+  position: relative;
+  box-sizing: border-box;
+  padding: 1.5em;
+  height: 100%;
+
+  img {
+    height: 100%;
+    float: left;
+  }
+}
+
+app-switch {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}

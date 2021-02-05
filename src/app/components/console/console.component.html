@@ -1,0 +1,20 @@
+<div id="console">
+  <img src="../../../assets/images/console.svg" alt="Control Board" />
+  <canvas
+    #canvas
+    id="canvas"
+    width="3000"
+    height="1858.87"
+    (mousedown)="switchPressed($event)"
+    (mouseup)="switchReleased()"
+  >
+  </canvas>
+  <div style="display: none">
+    <img id="switch" src="assets/images/switch.svg" alt="Switch" />
+    <img
+      id="switchLarge"
+      src="assets/images/switch_large.svg"
+      alt="Switch Large"
+    />
+  </div>
+</div>

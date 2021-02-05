@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
+import { CLF_RANGE, STF_RANGE } from './instructions';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -13,27 +14,44 @@ const PROGRAM_FLAG_COUNT = 6;
 @Injectable({
   providedIn: 'root',
 })
-export class CPUService {
+export class PDPService {
   mem: number[]; // 4096 18-bit words
   PC: number; // Program Counter (12-bit)
   AC: number; // Accumulator (18-bit)
   IO: number; // In-Out Register (18-bit)
+  MB: number; // Memory Buffer (18-bit)
+  IR: number; // Instruction Register (5-bit)
+  selectedAddress: number;
+  testWord: number;
   overflow: boolean;
+  halt: boolean;
   senseSwitches: boolean[];
   programFlags: boolean[];
+  showMonitor: boolean;
 
   constructor() {
     this.mem = Array<number>(MEM_SIZE).fill(0);
+    this.PC = 0;
+    this.AC = 0;
+    this.IO = 0;
+    this.MB = 0;
+    this.IR = 0;
+    this.selectedAddress = 0;
+    this.testWord = 0;
+    this.overflow = false;
+    this.halt = true;
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
+    this.showMonitor = false;
   }
 
   decode(): void {
-    const word = this.mem[this.PC];
-    const opcode = (word >> 12) & mask.MASK_OPCODE;
-    const shiftOpcode = (word >> 9) & mask.MASK_9;
-    const indirect = (word >> 12) & mask.MASK_1;
-    const Y = word & mask.MASK_12;
+    this.MB = this.mem[this.PC];
+    const opcode = (this.MB >> 12) & mask.MASK_OPCODE;
+    this.IR = (opcode >> 1) & mask.MASK_5;
+    const shiftOpcode = (this.MB >> 9) & mask.MASK_9;
+    const indirect = (this.MB >> 12) & mask.MASK_1;
+    const Y = this.MB & mask.MASK_12;
 
     switch (opcode) {
       // Add
@@ -224,77 +242,77 @@ export class CPUService {
           // Rotate Accumulator Right
           // rar N
           case instruction.RAR:
-            this.setAC(this.rotateRight(this.AC, helper.onesCount(word)));
+            this.setAC(this.rotateRight(this.AC, helper.onesCount(this.MB)));
             break;
 
           // Rotate Accumulator Left
           // ral N
           case instruction.RAL:
-            this.setAC(this.rotateLeft(this.AC, helper.onesCount(word)));
+            this.setAC(this.rotateLeft(this.AC, helper.onesCount(this.MB)));
             break;
 
           // Shift Accumulator Right
           // sar N
           case instruction.SAR:
-            this.setAC(this.shiftRight(this.AC, helper.onesCount(word)));
+            this.setAC(this.shiftRight(this.AC, helper.onesCount(this.MB)));
             break;
 
           // Shift Accumulator Left
           // sal N
           case instruction.SAL:
-            this.setAC(this.shiftLeft(this.AC, helper.onesCount(word)));
+            this.setAC(this.shiftLeft(this.AC, helper.onesCount(this.MB)));
             break;
 
           // Rotate In-Out Register Right
           // rir N
           case instruction.RIR:
-            this.setIO(this.rotateRight(this.IO, helper.onesCount(word)));
+            this.setIO(this.rotateRight(this.IO, helper.onesCount(this.MB)));
             break;
 
           // Rotate In-Out Register Left
           // ril N
           case instruction.RIL:
-            this.setIO(this.rotateLeft(this.IO, helper.onesCount(word)));
+            this.setIO(this.rotateLeft(this.IO, helper.onesCount(this.MB)));
             break;
 
           // Shift In-Out Register Right
           // sir N
           case instruction.SIR:
-            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(this.MB)));
             break;
 
           // Shift In-Out Register Left
           // sil N
           case instruction.SIL:
-            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(this.MB)));
             break;
 
           // Rotate AC and IO Right
           // rcr N
           case instruction.RCR:
-            this.rotateACIORight(helper.onesCount(word));
+            this.rotateACIORight(helper.onesCount(this.MB));
             break;
 
           // Rotate AC and IO Left
           // rcl N
           case instruction.RCL:
-            this.rotateACIOLeft(helper.onesCount(word));
+            this.rotateACIOLeft(helper.onesCount(this.MB));
             break;
 
           // Shift AC and IO Right
           // scr N
           case instruction.SCR:
-            this.shiftACIORight(helper.onesCount(word));
+            this.shiftACIORight(helper.onesCount(this.MB));
             break;
 
           // Shift AC and IO Left
           // scl N
           case instruction.SCL:
-            this.shiftACIOLeft(helper.onesCount(word));
+            this.shiftACIOLeft(helper.onesCount(this.MB));
             break;
 
           default:
-            console.log(`Instruction Not Implemented: ${word}`);
+            console.log(`Instruction Not Implemented: ${this.MB}`);
             break;
         }
         this.incPC();
@@ -347,12 +365,77 @@ export class CPUService {
 
           default:
             if (instruction.SZS_RANGE.includes(Y)) {
+              // Skip on ZERO Switch
+              // szs
               this.senseSwitchSkip(Y);
             } else if (instruction.SZF_RANGE.includes(Y)) {
+              // Skip on ZERO Program Flag
+              // szf
               this.programFlagSkip(Y);
             } else {
-              console.log(`Instruction Not Implemented: ${word}`);
-              break;
+              console.log(`Instruction Not Implemented: ${this.MB}`);
+            }
+            break;
+        }
+        this.incPC();
+        break;
+
+      // Operate Group
+      // opr
+      case instruction.OPERATE_GROUP:
+        switch (Y) {
+          // Clear In-Out Register
+          // cli
+          case instruction.CLI:
+            this.setIO(0);
+            break;
+
+          // Load Accumulator from Test Word
+          // lat
+          case instruction.LAT:
+            this.AC |= this.testWord;
+            break;
+
+          // Load Accumulator with Program Counter
+          // lap
+          case instruction.LAP:
+            this.AC |= this.PC;
+            this.AC |= helper.boolToBit(this.overflow) << 17;
+            break;
+
+          // Complement Accumulator
+          // cma
+          case instruction.CMA:
+            this.setAC(~this.AC);
+            break;
+
+          // Halt
+          // hlt
+          case instruction.HLT:
+            this.halt = true;
+            break;
+
+          // Clear Accumulator
+          // cla
+          case instruction.CLA:
+            this.setAC(0);
+            break;
+
+          // No Operation
+          case instruction.NOP:
+            break;
+
+          default:
+            if (CLF_RANGE.includes(Y)) {
+              // Clear Selected Program Flag
+              // clf
+              this.clearProgramFlag(Y);
+            } else if (STF_RANGE.includes(Y)) {
+              // Set Selected Program Flag
+              // stf
+              this.setProgramFlag(Y);
+            } else {
+              console.log(`Instruction Not Implemented: ${this.MB}`);
             }
             break;
         }
@@ -360,7 +443,8 @@ export class CPUService {
         break;
 
       default:
-        console.log(`Instruction Not Implemented: ${word}`);
+        console.log(`Instruction Not Implemented: ${this.MB}`);
+        this.incPC();
         break;
     }
   }
@@ -542,6 +626,27 @@ export class CPUService {
       );
       if (!allSwitches) {
         this.incPC();
+      }
+    }
+  }
+
+  setProgramFlag(Y: number): void {
+    const switchIndex = Y & mask.MASK_3;
+    if (switchIndex <= 6) {
+      this.senseSwitches[switchIndex] = true;
+    } else {
+      for (let index = 0; index < this.senseSwitches.length; index++) {
+        this.senseSwitches[index] = true;
+      }
+    }
+  }
+
+  clearProgramFlag(Y: number): void {
+    if (Y <= 6) {
+      this.senseSwitches[Y] = false;
+    } else {
+      for (let index = 0; index < this.senseSwitches.length; index++) {
+        this.senseSwitches[index] = false;
       }
     }
   }

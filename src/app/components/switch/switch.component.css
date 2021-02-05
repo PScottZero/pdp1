@@ -1,0 +1,40 @@
+#switch {
+  width: 4.5em;
+  height: 2.5em;
+  border-radius: 2.5em;
+  background: #dddddd;
+}
+
+#slider {
+  position: relative;
+  color: white;
+  height: 2.5em;
+  width: 2.5em;
+  border-radius: 2.5em;
+  text-align: center;
+  line-height: 2.7em;
+  transition: 0.3s;
+}
+
+img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70%;
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+}
+
+.right {
+  left: 2em;
+  background: #72a8c8;
+}
+
+.left {
+  left: 0;
+  background: #72a8c8;
+}
+
+/*# sourceMappingURL=switch.component.css.map */

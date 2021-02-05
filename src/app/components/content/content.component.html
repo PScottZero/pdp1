@@ -1,0 +1,8 @@
+<div id="content">
+  <div *ngIf="!showDisplay()">
+    <app-console></app-console>
+  </div>
+  <div *ngIf="showDisplay()">
+    <app-display></app-display>
+  </div>
+</div>
