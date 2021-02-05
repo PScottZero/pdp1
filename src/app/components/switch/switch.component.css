@@ -2,12 +2,11 @@
   width: 4.5em;
   height: 2.5em;
   border-radius: 2.5em;
-  background: #dddddd;
+  background: #f1ece1;
 }
 
 #slider {
   position: relative;
-  color: white;
   height: 2.5em;
   width: 2.5em;
   border-radius: 2.5em;
