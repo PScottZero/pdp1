@@ -34,6 +34,9 @@ export class ConsoleComponent implements OnInit {
     this.switchImage.src = 'assets/images/switch.svg';
     this.largeSwitchImage = new Image();
     this.largeSwitchImage.src = 'assets/images/switch_large.svg';
+    this.pdp.updateEmitter.subscribe(() => {
+      this.drawState();
+    });
     this.switchImage.onload = () => this.drawState();
     this.largeSwitchImage.onload = () => this.drawState();
   }
@@ -66,8 +69,7 @@ export class ConsoleComponent implements OnInit {
     });
     if (this.inSwitchRange(x, y, this.singleStepSwitch)) {
       this.singleStep = !this.singleStep;
-      this.pdp.decode();
-      this.pdp.MB = this.pdp.mem[this.pdp.PC];
+      this.pdp.step();
     }
     this.bottomSwitches.forEach((value, index) => {
       if (this.inLargeSwitchRange(x, y, value)) {
@@ -80,6 +82,15 @@ export class ConsoleComponent implements OnInit {
 
   performBottomSwitchAction(index: number): void {
     switch (index) {
+      case 0:
+        this.pdp.start();
+        break;
+      case 1:
+        this.pdp.stop();
+        break;
+      case 2:
+        this.pdp.continue();
+        break;
       case 3:
         this.pdp.PC = this.pdp.selectedAddress;
         this.pdp.MB = this.pdp.mem[this.pdp.PC];

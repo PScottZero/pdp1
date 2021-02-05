@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { EventEmitter, Injectable } from '@angular/core';
 import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
@@ -28,8 +28,11 @@ export class PDPService {
   senseSwitches: boolean[];
   programFlags: boolean[];
   showMonitor: boolean;
+  updateEmitter: EventEmitter<void>;
+  runProcess;
 
   constructor() {
+    this.updateEmitter = new EventEmitter<void>();
     this.mem = Array<number>(MEM_SIZE).fill(0);
     this.PC = 0;
     this.AC = 0;
@@ -43,6 +46,62 @@ export class PDPService {
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
     this.showMonitor = false;
+    this.load();
+  }
+
+  step(): void {
+    this.decode();
+    this.MB = this.mem[this.PC];
+  }
+
+  start(): void {
+    clearInterval(this.runProcess);
+    this.halt = false;
+    this.PC = this.selectedAddress;
+    this.runProcess = setInterval(() => {
+      this.step();
+      if (this.halt) {
+        clearInterval(this.runProcess);
+      }
+      this.updateEmitter.emit();
+    }, 1);
+  }
+
+  stop(): void {
+    clearInterval(this.runProcess);
+    this.halt = true;
+    this.updateEmitter.emit();
+  }
+
+  continue(): void {
+    if (this.halt) {
+      this.runProcess = setInterval(() => {
+        this.step();
+        this.updateEmitter.emit();
+      }, 1);
+    }
+  }
+
+  load(): void {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'assets/tapes/spacewar2B_2apr62.bin', true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      const bytes = new Uint8Array(xhr.response);
+      let index = 0;
+      let bitsNeeded = 17;
+      for (const byte of bytes) {
+        for (let bit = 7; bit >= 0; bit--) {
+          this.mem[index] |= ((byte >> bit) & 1) << bitsNeeded;
+          bitsNeeded--;
+          if (bitsNeeded < 0) {
+            bitsNeeded = 17;
+            index++;
+          }
+        }
+      }
+    };
+    xhr.send();
   }
 
   decode(): void {
