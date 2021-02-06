@@ -3,6 +3,7 @@ import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
+import { SPACEWAR } from './spacewar';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -83,25 +84,13 @@ export class PDPService {
   }
 
   load(): void {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', 'assets/tapes/spacewar2B_2apr62.bin', true);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      const bytes = new Uint8Array(xhr.response);
-      let index = 0;
-      let bitsNeeded = 17;
-      for (const byte of bytes) {
-        for (let bit = 7; bit >= 0; bit--) {
-          this.mem[index] |= ((byte >> bit) & 1) << bitsNeeded;
-          bitsNeeded--;
-          if (bitsNeeded < 0) {
-            bitsNeeded = 17;
-            index++;
-          }
-        }
-      }
-    };
-    xhr.send();
+    let memIndex = 0;
+    for (const word of SPACEWAR) {
+      this.mem[memIndex] = word;
+      memIndex++;
+    }
+    this.PC = 4;
+    this.MB = this.mem[this.PC];
   }
 
   decode(): void {
