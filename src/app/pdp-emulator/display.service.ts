@@ -18,7 +18,6 @@ export class DisplayService {
   setXY(x: number, y: number): void {
     x = Math.floor(x / 4);
     y = Math.floor(y / 4);
-    console.log(x, y);
     this.data[y * DISPLAY_SIZE + x] = 1;
   }
 

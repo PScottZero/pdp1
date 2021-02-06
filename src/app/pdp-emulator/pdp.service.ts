@@ -722,17 +722,17 @@ export class PDPService {
   setDisplayCoords(): void {
     let x = this.AC & mask.MASK_9;
     let y = this.IO & mask.MASK_9;
-    if (((x >> 8) & mask.MASK_1) == 1) {
-      x = 512 - (~x & mask.MASK_9);
+    if (((x >> 9) & mask.MASK_1) == 1) {
+      x = 511 - (~x & mask.MASK_9);
     } else {
       x += 512;
     }
-    if (((y >> 8) & mask.MASK_1) == 1) {
-      y = 512 - (~y & mask.MASK_9);
+    if (((y >> 9) & mask.MASK_1) == 1) {
+      y = 511 - (~y & mask.MASK_9);
     } else {
       y += 512;
     }
-    console.log(x, y);
+    y = 1024 - y;
     this.display.setXY(x, y);
   }
 }
