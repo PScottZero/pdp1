@@ -78,6 +78,7 @@ export const SZF_RANGE = [
 export const OPERATE_GROUP = 0o76;
 export const CLI = 0o4000;
 export const LAT = 0o2000;
+export const LAT_CLA = 0o2200;
 export const LAP = 0o0100;
 export const CMA = 0o1000;
 export const HLT = 0o0400;
@@ -104,3 +105,5 @@ export const STF_RANGE = [
 
 // IO
 export const IOT = 0o72;
+export const TYI = 0o0004;
+export const DPY = 0o0007;

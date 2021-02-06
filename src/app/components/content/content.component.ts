@@ -10,6 +10,6 @@ export class ContentComponent {
   constructor(private pdp: PDPService) {}
 
   showDisplay(): boolean {
-    return this.pdp.showMonitor;
+    return this.pdp.showDisplay;
   }
 }

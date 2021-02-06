@@ -4,6 +4,7 @@ import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
 import { SPACEWAR } from './spacewar';
+import { DisplayService } from './display.service';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -28,11 +29,11 @@ export class PDPService {
   halt: boolean;
   senseSwitches: boolean[];
   programFlags: boolean[];
-  showMonitor: boolean;
+  showDisplay: boolean;
   updateEmitter: EventEmitter<void>;
-  runProcess;
+  runProcess: NodeJS.Timeout;
 
-  constructor() {
+  constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
     this.mem = Array<number>(MEM_SIZE).fill(0);
     this.PC = 0;
@@ -46,13 +47,14 @@ export class PDPService {
     this.halt = true;
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
-    this.showMonitor = false;
+    this.showDisplay = false;
     this.load();
   }
 
   step(): void {
     this.decode();
     this.MB = this.mem[this.PC];
+    this.IR = (this.MB >> 13) & mask.MASK_5;
   }
 
   start(): void {
@@ -91,6 +93,7 @@ export class PDPService {
     }
     this.PC = 4;
     this.MB = this.mem[this.PC];
+    this.IR = (this.MB >> 13) & mask.MASK_5;
   }
 
   decode(): void {
@@ -360,7 +363,7 @@ export class PDPService {
             break;
 
           default:
-            console.log(`Instruction Not Implemented: ${this.MB}`);
+            console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
             break;
         }
         this.incPC();
@@ -369,61 +372,55 @@ export class PDPService {
       // Skip Group
       // skp
       case instruction.SKIP_GROUP:
-        switch (Y) {
-          // Skip on ZERO Accumulator
-          // sza
-          case instruction.SZA:
-            if (this.AC == 0) {
-              this.incPC();
-            }
-            break;
+        // Skip on ZERO Accumulator
+        // sza
+        if ((Y & instruction.SZA) != 0) {
+          if (this.AC == 0) {
+            this.incPC();
+          }
+        }
 
-          // Skip on Plus Accumulator
-          // spa
-          case instruction.SPA:
-            if (helper.isPositive(this.AC)) {
-              this.incPC();
-            }
-            break;
+        // Skip on Plus Accumulator
+        // spa
+        if ((Y & instruction.SPA) != 0) {
+          if (helper.isPositive(this.AC)) {
+            this.incPC();
+          }
+        }
 
-          // Skip on Minus Accumulator
-          // sma
-          case instruction.SMA:
-            if (!helper.isPositive(this.AC)) {
-              this.incPC();
-            }
-            break;
+        // Skip on Minus Accumulator
+        // sma
+        if ((Y & instruction.SMA) != 0) {
+          if (!helper.isPositive(this.AC)) {
+            this.incPC();
+          }
+        }
 
-          // Skip on ZERO Overflow
-          // szo
-          case instruction.SZO:
-            if (!this.overflow) {
-              this.incPC();
-            }
-            this.overflow = false;
-            break;
+        // Skip on ZERO Overflow
+        // szo
+        if ((Y & instruction.SZO) != 0) {
+          if (!this.overflow) {
+            this.incPC();
+          }
+          this.overflow = false;
+        }
 
-          // Skip on Plus In-Out Register
-          // spi
-          case instruction.SPI:
-            if (helper.isPositive(this.IO)) {
-              this.incPC();
-            }
-            break;
+        // Skip on Plus In-Out Register
+        // spi
+        if ((Y & instruction.SPI) != 0) {
+          if (helper.isPositive(this.IO)) {
+            this.incPC();
+          }
+        }
 
-          default:
-            if (instruction.SZS_RANGE.includes(Y)) {
-              // Skip on ZERO Switch
-              // szs
-              this.senseSwitchSkip(Y);
-            } else if (instruction.SZF_RANGE.includes(Y)) {
-              // Skip on ZERO Program Flag
-              // szf
-              this.programFlagSkip(Y);
-            } else {
-              console.log(`Instruction Not Implemented: ${this.MB}`);
-            }
-            break;
+        if (instruction.SZS_RANGE.includes(Y & mask.SZS_MASK)) {
+          // Skip on ZERO Switch
+          // szs
+          this.senseSwitchSkip(Y);
+        } else if (instruction.SZF_RANGE.includes(Y & mask.MASK_3)) {
+          // Skip on ZERO Program Flag
+          // szf
+          this.programFlagSkip(Y);
         }
         this.incPC();
         break;
@@ -431,67 +428,74 @@ export class PDPService {
       // Operate Group
       // opr
       case instruction.OPERATE_GROUP:
+        // Halt
+        // hlt
+        if (Y == instruction.HLT) {
+          this.halt = true;
+        }
+
+        // Clear Accumulator
+        // CLA
+        if ((Y & instruction.CLA) != 0) {
+          this.setAC(0);
+        }
+
+        // Clear In-Out Register
+        // CLI
+        if ((Y & instruction.CLI) != 0) {
+          this.setIO(0);
+        }
+
+        // Load Accumulator with Program Counter
+        // LAP
+        if ((Y & instruction.LAP) != 0) {
+          this.AC |= this.PC;
+          this.AC |= helper.boolToBit(this.overflow) << 17;
+        }
+
+        // Load Accumulator from Test Word
+        // LAT
+        if ((Y & instruction.LAT) != 0) {
+          this.AC |= this.testWord;
+        }
+
+        // Complement Accumulator
+        // CMA
+        if ((Y & instruction.CMA) != 0) {
+          this.setAC(~this.AC);
+        }
+
+        if (CLF_RANGE.includes(Y & mask.MASK_4)) {
+          // Clear Selected Program Flag
+          // clf
+          this.clearProgramFlag(Y);
+        } else if (STF_RANGE.includes(Y & mask.MASK_4)) {
+          // Set Selected Program Flag
+          // stf
+          this.setProgramFlag(Y);
+        }
+        this.incPC();
+        break;
+
+      case instruction.IOT:
         switch (Y) {
-          // Clear In-Out Register
-          // cli
-          case instruction.CLI:
-            this.setIO(0);
+          case instruction.TYI:
+            // TODO: Implement TYI
             break;
 
-          // Load Accumulator from Test Word
-          // lat
-          case instruction.LAT:
-            this.AC |= this.testWord;
-            break;
-
-          // Load Accumulator with Program Counter
-          // lap
-          case instruction.LAP:
-            this.AC |= this.PC;
-            this.AC |= helper.boolToBit(this.overflow) << 17;
-            break;
-
-          // Complement Accumulator
-          // cma
-          case instruction.CMA:
-            this.setAC(~this.AC);
-            break;
-
-          // Halt
-          // hlt
-          case instruction.HLT:
-            this.halt = true;
-            break;
-
-          // Clear Accumulator
-          // cla
-          case instruction.CLA:
-            this.setAC(0);
-            break;
-
-          // No Operation
-          case instruction.NOP:
+          case instruction.DPY:
+            this.setDisplayCoords();
             break;
 
           default:
-            if (CLF_RANGE.includes(Y)) {
-              // Clear Selected Program Flag
-              // clf
-              this.clearProgramFlag(Y);
-            } else if (STF_RANGE.includes(Y)) {
-              // Set Selected Program Flag
-              // stf
-              this.setProgramFlag(Y);
-            } else {
-              console.log(`Instruction Not Implemented: ${this.MB}`);
-            }
+            console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
             break;
         }
         this.incPC();
         break;
 
       default:
-        console.log(`Instruction Not Implemented: ${this.MB}`);
+        console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
         this.incPC();
         break;
     }
@@ -713,5 +717,22 @@ export class PDPService {
 
   incPC(): void {
     this.setPC(this.PC + 1);
+  }
+
+  setDisplayCoords(): void {
+    let x = this.AC & mask.MASK_9;
+    let y = this.IO & mask.MASK_9;
+    if (((x >> 8) & mask.MASK_1) == 1) {
+      x = 512 - (~x & mask.MASK_9);
+    } else {
+      x += 512;
+    }
+    if (((y >> 8) & mask.MASK_1) == 1) {
+      y = 512 - (~y & mask.MASK_9);
+    } else {
+      y += 512;
+    }
+    console.log(x, y);
+    this.display.setXY(x, y);
   }
 }

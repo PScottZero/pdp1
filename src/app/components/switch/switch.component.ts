@@ -10,14 +10,14 @@ export class SwitchComponent {
   constructor(private pdp: PDPService) {}
 
   toggleSlider(): void {
-    this.pdp.showMonitor = !this.pdp.showMonitor;
+    this.pdp.showDisplay = !this.pdp.showDisplay;
   }
 
   showMonitor(): boolean {
-    return this.pdp.showMonitor;
+    return this.pdp.showDisplay;
   }
 
   getImage(): string {
-    return this.pdp.showMonitor ? 'display_icon' : 'console_icon';
+    return this.pdp.showDisplay ? 'display_icon' : 'console_icon';
   }
 }
