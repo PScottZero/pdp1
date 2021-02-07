@@ -24,7 +24,7 @@ export class DisplayService {
   refresh(): void {
     for (let index = 0; index < DISPLAY_SIZE * DISPLAY_SIZE; index++) {
       if (this.data[index] > 0) {
-        this.data[index] -= 0;
+        this.data[index] -= 0.02;
       }
     }
     this.refreshEmitter.emit();
