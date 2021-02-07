@@ -5,6 +5,7 @@ import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
 import { SPACEWAR } from './spacewar';
 import { DisplayService } from './display.service';
+import { TapeReaderService } from './tape-reader.service';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -33,7 +34,10 @@ export class PDPService {
   updateEmitter: EventEmitter<void>;
   runProcess: NodeJS.Timeout;
 
-  constructor(private display: DisplayService) {
+  constructor(
+    private display: DisplayService,
+    private tapeReader: TapeReaderService
+  ) {
     this.updateEmitter = new EventEmitter<void>();
     this.mem = Array<number>(MEM_SIZE).fill(0);
     this.PC = 0;
@@ -48,7 +52,7 @@ export class PDPService {
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
     this.showDisplay = false;
-    this.load();
+    this.tapeReader.load('snowflake_sa-100.bin', this.mem);
   }
 
   step(): void {
