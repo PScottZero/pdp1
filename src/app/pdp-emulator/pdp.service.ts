@@ -3,9 +3,7 @@ import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
-import { SPACEWAR } from './spacewar';
 import { DisplayService } from './display.service';
-import { TapeReaderService } from './tape-reader.service';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -13,6 +11,7 @@ const AC_SAVE_ADDR = 0o100;
 const SUB_ADDR = 0o101;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
+const CYCLE_COUNT = 1000;
 
 @Injectable({
   providedIn: 'root',
@@ -33,11 +32,13 @@ export class PDPService {
   showDisplay: boolean;
   updateEmitter: EventEmitter<void>;
   runProcess: NodeJS.Timeout;
+  tapeBytes: Uint8Array;
+  tapeIndex: number;
+  skipped: boolean;
+  jumped: boolean;
+  opList: string[];
 
-  constructor(
-    private display: DisplayService,
-    private tapeReader: TapeReaderService
-  ) {
+  constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
     this.mem = Array<number>(MEM_SIZE).fill(0);
     this.PC = 0;
@@ -52,103 +53,102 @@ export class PDPService {
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
     this.showDisplay = false;
-    this.tapeReader.load('snowflake_sa-100.bin', this.mem);
+    this.skipped = false;
+    this.jumped = false;
+    this.opList = [];
+    this.load('snowflake_sa-100.bin');
+  }
+
+  stepRun(): void {
+    for (let _ = 0; _ < CYCLE_COUNT; _++) {
+      if (!this.halt) {
+        this.decode();
+      }
+    }
+    this.MB = this.mem[this.PC];
+    this.IR = (this.MB >> 13) & mask.MASK_5;
+    this.updateEmitter.emit();
+    if (!this.halt) {
+      requestAnimationFrame(() => this.stepRun());
+    }
   }
 
   step(): void {
     this.decode();
     this.MB = this.mem[this.PC];
     this.IR = (this.MB >> 13) & mask.MASK_5;
-  }
-
-  start(): void {
-    clearInterval(this.runProcess);
-    this.halt = false;
-    this.PC = this.selectedAddress;
-    this.runProcess = setInterval(() => {
-      this.step();
-      if (this.halt) {
-        clearInterval(this.runProcess);
-      }
-      this.updateEmitter.emit();
-    }, 1);
-  }
-
-  stop(): void {
-    clearInterval(this.runProcess);
-    this.halt = true;
     this.updateEmitter.emit();
   }
 
-  continue(): void {
-    if (this.halt) {
-      this.runProcess = setInterval(() => {
-        this.step();
-        this.updateEmitter.emit();
-      }, 1);
-    }
+  start(): void {
+    this.halt = false;
+    this.PC = this.selectedAddress;
+    requestAnimationFrame(() => this.stepRun());
   }
 
-  load(): void {
-    let memIndex = 0;
-    for (const word of SPACEWAR) {
-      this.mem[memIndex] = word;
-      memIndex++;
-    }
-    this.PC = 4;
-    this.MB = this.mem[this.PC];
-    this.IR = (this.MB >> 13) & mask.MASK_5;
+  stop(): void {
+    this.halt = true;
+  }
+
+  continue(): void {
+    this.halt = false;
+    requestAnimationFrame(() => this.stepRun());
   }
 
   decode(): void {
-    this.MB = this.mem[this.PC];
-    const opcode = (this.MB >> 12) & mask.MASK_OPCODE;
-    this.IR = (opcode >> 1) & mask.MASK_5;
-    const shiftOpcode = (this.MB >> 9) & mask.MASK_9;
-    const indirect = (this.MB >> 12) & mask.MASK_1;
-    const Y = this.MB & mask.MASK_12;
+    const word = this.mem[this.PC];
+    const opcode = (word >> 12) & mask.MASK_OPCODE;
+    const shiftOpcode = (word >> 9) & mask.MASK_9;
+    const indirect = ((word >> 12) & mask.MASK_1) != 0;
+    const Y = word & mask.MASK_12;
+    const currPC = this.PC;
+    const fullOpcode = (word >> 12) & mask.MASK_6;
+    if (!this.opList.includes(fullOpcode.toString(8)) && this.PC < 0o7000) {
+      this.opList.push(fullOpcode.toString(8));
+    }
 
     switch (opcode) {
       // Add
       // add Y
       case instruction.ADD:
-        this.add(this.read(Y));
+        this.add(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Subtract
       // sub Y
       case instruction.SUB:
-        this.subtract(this.read(Y));
+        this.subtract(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Multiply
       // mul Y
       case instruction.MUL:
-        this.multiply(this.read(Y));
+        this.multiply(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Divide
       // div Y
       case instruction.DIV:
-        this.divide(this.read(Y));
+        this.divide(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Index
       // idx Y
       case instruction.IDX:
-        this.incY(Y);
+        this.incY(Y, indirect);
         this.incPC();
         break;
 
       // Index and Skip if Positive
       // isp Y
       case instruction.ISP:
-        this.incY(Y);
+        this.incY(Y, indirect);
         if (helper.isPositive(this.AC)) {
+          this.skipped = true;
           this.incPC();
         }
         this.incPC();
@@ -157,83 +157,93 @@ export class PDPService {
       // Logical AND
       // and Y
       case instruction.AND:
-        this.setAC(this.AC & this.read(Y));
+        this.setAC(this.AC & this.read(Y, indirect));
         this.incPC();
         break;
 
       // Exclusive OR
       // xor Y
       case instruction.XOR:
-        this.setAC(this.AC ^ this.read(Y));
+        this.setAC(this.AC ^ this.read(Y, indirect));
         this.incPC();
         break;
 
       // Inclusive OR
       // ior Y
       case instruction.IOR:
-        this.setAC(this.AC | this.read(Y));
+        this.setAC(this.AC | this.read(Y, indirect));
         this.incPC();
         break;
 
       // Load Accumulator
       // lac Y
       case instruction.LAC:
-        this.setAC(this.read(Y));
+        this.setAC(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Deposit Accumulator
       // dac Y
       case instruction.DAC:
-        this.write(Y, this.AC);
+        this.write(Y, this.AC, indirect);
         this.incPC();
         break;
 
       // Deposit Address Part
       // dap Y
       case instruction.DAP:
-        this.writeY(Y, this.AC);
+        this.writeAddr(Y, this.AC, indirect);
         this.incPC();
         break;
 
       // Deposit Instruction Part
       // dip Y
       case instruction.DIP:
-        this.writeInstr(Y, this.AC);
+        this.writeInstr(Y, this.AC, indirect);
         this.incPC();
         break;
 
       // Load In-Out Register
       // lio Y
       case instruction.LIO:
-        this.setIO(this.read(Y));
+        this.setIO(this.read(Y, indirect));
         this.incPC();
         break;
 
       // Deposit In-Out Register
       // dio Y
       case instruction.DIO:
-        this.write(Y, this.IO);
+        this.write(Y, this.IO, indirect);
         this.incPC();
         break;
 
       // Deposit Zero in Memory
       // dzm Y
       case instruction.DZM:
-        this.writeInstr(Y, 0);
+        this.write(Y, 0, indirect);
         this.incPC();
         break;
 
       // Execute
       // xct Y
       case instruction.XCT:
-        // TODO: Implement Execute
+        this.jumped = false;
+        this.skipped = false;
+        this.setPC(Y);
+        this.decode();
+        if (!this.jumped) {
+          this.setPC(currPC);
+          if (this.skipped) {
+            this.incPC();
+          }
+          this.incPC();
+        }
         break;
 
       // Jump
       // jmp Y
       case instruction.JMP:
-        this.setPC(Y);
+        this.jump(Y, indirect);
         break;
 
       // Jump and Save Program Counter
@@ -241,31 +251,34 @@ export class PDPService {
       case instruction.JSP:
         this.incPC();
         this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
-        this.setPC(Y);
+        this.jump(Y, indirect);
         break;
 
       case instruction.CAL_JDA:
         if (!indirect) {
           // Call Subroutine
           // cal Y
-          this.write(AC_SAVE_ADDR, this.AC);
+          this.jumped = true;
+          this.write(AC_SAVE_ADDR, this.AC, false);
           this.incPC();
           this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
           this.setPC(SUB_ADDR);
         } else {
           // Jump and Deposit Accumulator
           // jda Y
-          this.write(Y, this.AC);
+          this.jumped = true;
+          this.write(Y, this.AC, false);
           this.incPC();
           this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
-          this.setPC(Y);
+          this.setPC(Y + 1);
         }
         break;
 
       // Skip if Accumulator and Y differ
       // sad Y
       case instruction.SAD:
-        if (Y != this.AC) {
+        if (this.read(Y, indirect) != this.AC) {
+          this.skipped = true;
           this.incPC();
         }
         this.incPC();
@@ -274,7 +287,8 @@ export class PDPService {
       // Skip if Accumulator and Y are the same
       // sas Y
       case instruction.SAS:
-        if (Y == this.AC) {
+        if (this.read(Y, indirect) == this.AC) {
+          this.skipped = true;
           this.incPC();
         }
         this.incPC();
@@ -285,7 +299,7 @@ export class PDPService {
       case instruction.LAW:
         this.setAC(Y);
         if (indirect) {
-          this.AC = ~this.AC;
+          this.setAC(~this.AC);
         }
         this.incPC();
         break;
@@ -297,77 +311,77 @@ export class PDPService {
           // Rotate Accumulator Right
           // rar N
           case instruction.RAR:
-            this.setAC(this.rotateRight(this.AC, helper.onesCount(this.MB)));
+            this.setAC(this.rotateRight(this.AC, helper.onesCount(word)));
             break;
 
           // Rotate Accumulator Left
           // ral N
           case instruction.RAL:
-            this.setAC(this.rotateLeft(this.AC, helper.onesCount(this.MB)));
+            this.setAC(this.rotateLeft(this.AC, helper.onesCount(word)));
             break;
 
           // Shift Accumulator Right
           // sar N
           case instruction.SAR:
-            this.setAC(this.shiftRight(this.AC, helper.onesCount(this.MB)));
+            this.setAC(this.shiftRight(this.AC, helper.onesCount(word)));
             break;
 
           // Shift Accumulator Left
           // sal N
           case instruction.SAL:
-            this.setAC(this.shiftLeft(this.AC, helper.onesCount(this.MB)));
+            this.setAC(this.shiftLeft(this.AC, helper.onesCount(word)));
             break;
 
           // Rotate In-Out Register Right
           // rir N
           case instruction.RIR:
-            this.setIO(this.rotateRight(this.IO, helper.onesCount(this.MB)));
+            this.setIO(this.rotateRight(this.IO, helper.onesCount(word)));
             break;
 
           // Rotate In-Out Register Left
           // ril N
           case instruction.RIL:
-            this.setIO(this.rotateLeft(this.IO, helper.onesCount(this.MB)));
+            this.setIO(this.rotateLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Shift In-Out Register Right
           // sir N
           case instruction.SIR:
-            this.setIO(this.shiftLeft(this.IO, helper.onesCount(this.MB)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Shift In-Out Register Left
           // sil N
           case instruction.SIL:
-            this.setIO(this.shiftLeft(this.IO, helper.onesCount(this.MB)));
+            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
             break;
 
           // Rotate AC and IO Right
           // rcr N
           case instruction.RCR:
-            this.rotateACIORight(helper.onesCount(this.MB));
+            this.rotateACIORight(helper.onesCount(word));
             break;
 
           // Rotate AC and IO Left
           // rcl N
           case instruction.RCL:
-            this.rotateACIOLeft(helper.onesCount(this.MB));
+            this.rotateACIOLeft(helper.onesCount(word));
             break;
 
           // Shift AC and IO Right
           // scr N
           case instruction.SCR:
-            this.shiftACIORight(helper.onesCount(this.MB));
+            this.shiftACIORight(helper.onesCount(word));
             break;
 
           // Shift AC and IO Left
           // scl N
           case instruction.SCL:
-            this.shiftACIOLeft(helper.onesCount(this.MB));
+            this.shiftACIOLeft(helper.onesCount(word));
             break;
 
           default:
-            console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
+            console.log(`Instruction Not Implemented: ${word.toString(8)}`);
             break;
         }
         this.incPC();
@@ -380,6 +394,7 @@ export class PDPService {
         // sza
         if ((Y & instruction.SZA) != 0) {
           if (this.AC == 0) {
+            this.skipped = true;
             this.incPC();
           }
         }
@@ -388,6 +403,7 @@ export class PDPService {
         // spa
         if ((Y & instruction.SPA) != 0) {
           if (helper.isPositive(this.AC)) {
+            this.skipped = true;
             this.incPC();
           }
         }
@@ -396,6 +412,7 @@ export class PDPService {
         // sma
         if ((Y & instruction.SMA) != 0) {
           if (!helper.isPositive(this.AC)) {
+            this.skipped = true;
             this.incPC();
           }
         }
@@ -404,6 +421,7 @@ export class PDPService {
         // szo
         if ((Y & instruction.SZO) != 0) {
           if (!this.overflow) {
+            this.skipped = true;
             this.incPC();
           }
           this.overflow = false;
@@ -413,6 +431,7 @@ export class PDPService {
         // spi
         if ((Y & instruction.SPI) != 0) {
           if (helper.isPositive(this.IO)) {
+            this.skipped = true;
             this.incPC();
           }
         }
@@ -482,45 +501,91 @@ export class PDPService {
         break;
 
       case instruction.IOT:
-        switch (Y) {
+        switch (Y & mask.MASK_6) {
           case instruction.TYI:
             // TODO: Implement TYI
             break;
 
           case instruction.DPY:
-            this.setDisplayCoords();
+            this.setDisplayCoords(Y);
+            break;
+
+          // Read Perforated Tape, Binary
+          // rpb
+          case instruction.RPB:
+            this.setIO(this.readWord());
             break;
 
           default:
-            console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
+            console.log(`Instruction Not Implemented: ${word.toString(8)}`);
             break;
         }
         this.incPC();
         break;
 
       default:
-        console.log(`Instruction Not Implemented: ${this.MB.toString(8)}`);
+        console.log(`Instruction Not Implemented: ${word.toString(8)}`);
         this.incPC();
         break;
     }
   }
 
-  read(addr: number): number {
-    return this.mem[addr & mask.MASK_12] & mask.MASK_18;
+  read(addr: number, indirect: boolean): number {
+    if (indirect) {
+      const word = this.read(addr, false);
+      const newAddr = word & mask.MASK_12;
+      const indirectAgain = ((word >> 12) & mask.MASK_1) != 0;
+      return this.read(newAddr, indirectAgain);
+    } else {
+      return this.mem[addr & mask.MASK_12] & mask.MASK_18;
+    }
   }
 
-  write(addr: number, value: number): void {
-    this.mem[addr & mask.MASK_12] = value & mask.MASK_18;
+  write(addr: number, value: number, indirect: boolean): void {
+    if (indirect) {
+      const word = this.read(addr, false);
+      const newAddr = word & mask.MASK_12;
+      const indirectAgain = ((word >> 12) & mask.MASK_1) != 0;
+      this.write(newAddr, value, indirectAgain);
+    } else {
+      this.mem[addr & mask.MASK_12] = value & mask.MASK_18;
+    }
   }
 
-  writeInstr(addr: number, value: number): void {
-    this.mem[addr & mask.MASK_12] &= mask.CLR_INSTR;
-    this.mem[addr & mask.MASK_12] |= value & mask.INSTR_MASK;
+  writeInstr(addr: number, value: number, indirect: boolean): void {
+    if (indirect) {
+      const word = this.read(addr, false);
+      const newAddr = word & mask.MASK_12;
+      const indirectAgain = ((word >> 12) & mask.MASK_1) != 0;
+      this.writeInstr(newAddr, value, indirectAgain);
+    } else {
+      this.mem[addr & mask.MASK_12] &= mask.CLR_INSTR;
+      this.mem[addr & mask.MASK_12] |= value & mask.INSTR_MASK;
+    }
   }
 
-  writeY(addr: number, value: number): void {
-    this.mem[addr & mask.MASK_12] &= mask.CLR_Y;
-    this.mem[addr & mask.MASK_12] |= value & mask.MASK_12;
+  writeAddr(addr: number, value: number, indirect: boolean): void {
+    if (indirect) {
+      const word = this.read(addr, false);
+      const newAddr = word & mask.MASK_12;
+      const indirectAgain = ((word >> 12) & mask.MASK_1) != 0;
+      this.writeAddr(newAddr, value, indirectAgain);
+    } else {
+      this.mem[addr & mask.MASK_12] &= mask.CLR_Y;
+      this.mem[addr & mask.MASK_12] |= value & mask.MASK_12;
+    }
+  }
+
+  jump(addr: number, indirect: boolean): void {
+    this.jumped = true;
+    if (indirect) {
+      const word = this.read(addr, false);
+      const newAddr = word & mask.MASK_12;
+      const indirectAgain = ((word >> 12) & mask.MASK_1) != 0;
+      this.jump(newAddr, indirectAgain);
+    } else {
+      this.setPC(addr);
+    }
   }
 
   add(value: number): void {
@@ -651,21 +716,23 @@ export class PDPService {
     }
   }
 
-  incY(Y: number): void {
-    this.setAC(this.read(Y) + 1);
+  incY(Y: number, indirect: boolean): void {
+    this.setAC(this.read(Y, indirect) + 1);
     if (this.AC == NEG_ZERO) {
       this.setAC(0);
     }
-    this.write(this.AC, Y);
+    this.write(Y, this.AC, indirect);
   }
 
   programFlagSkip(Y: number): void {
     if (Y <= 6 && !this.programFlags[Y]) {
+      this.skipped = true;
       this.incPC();
     } else {
       let allFlags = false;
       this.programFlags.forEach((flagValue) => (allFlags ||= flagValue));
       if (!allFlags) {
+        this.skipped = true;
         this.incPC();
       }
     }
@@ -674,6 +741,7 @@ export class PDPService {
   senseSwitchSkip(Y: number): void {
     const switchIndex = (Y >> 3) & mask.MASK_1;
     if (switchIndex <= 6 && !this.senseSwitches[switchIndex]) {
+      this.skipped = true;
       this.incPC();
     } else {
       let allSwitches = false;
@@ -681,6 +749,7 @@ export class PDPService {
         (switchValue) => (allSwitches ||= switchValue)
       );
       if (!allSwitches) {
+        this.skipped = true;
         this.incPC();
       }
     }
@@ -723,20 +792,60 @@ export class PDPService {
     this.setPC(this.PC + 1);
   }
 
-  setDisplayCoords(): void {
-    let x = this.AC & mask.MASK_9;
-    let y = this.IO & mask.MASK_9;
+  setDisplayCoords(Y: number): void {
+    let x = this.AC & mask.MASK_10;
+    let y = this.IO & mask.MASK_10;
     if (((x >> 9) & mask.MASK_1) == 1) {
       x = 511 - (~x & mask.MASK_9);
     } else {
       x += 512;
     }
     if (((y >> 9) & mask.MASK_1) == 1) {
-      y = 511 - (~y & mask.MASK_9);
+      y = 512 + (~y & mask.MASK_9);
     } else {
-      y += 512;
+      y = 511 - y;
     }
-    y = 1024 - y;
-    this.display.setXY(x, y);
+    this.display.setXY(x, y, (Y >> 6) & mask.MASK_3);
+  }
+
+  load(tapeName: string): void {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', `assets/tapes/${tapeName}`, true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      this.tapeIndex = 0;
+      this.tapeBytes = new Uint8Array(xhr.response);
+      while (this.tapeIndex < this.tapeBytes.length) {
+        if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
+          const instruction = this.readWord();
+          if ((instruction & 0o770000) == 0o320000) {
+            this.mem[instruction & 0o7777] = this.readWord();
+          } else if ((instruction & 0o770000) == 0o600000) {
+            this.setPC(instruction & 0o7777);
+            break;
+          }
+        } else {
+          this.tapeIndex++;
+        }
+      }
+    };
+    xhr.send();
+  }
+
+  readWord(): number {
+    let word = 0;
+    let count = 0;
+    while (count < 3 && this.tapeIndex < this.tapeBytes.length) {
+      if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
+        word = (word << 6) | (this.tapeBytes[this.tapeIndex++] & 0o77);
+        count++;
+      } else {
+        this.tapeIndex++;
+      }
+    }
+    if (this.tapeIndex >= this.tapeBytes.length) {
+      this.halt = true;
+    }
+    return word;
   }
 }

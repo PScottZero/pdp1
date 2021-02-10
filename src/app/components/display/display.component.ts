@@ -37,7 +37,16 @@ export class DisplayComponent implements OnInit {
   }
 
   fillColor(px: number): string {
-    const intensity = 255 * px;
-    return `rgba(${intensity}, ${intensity}, ${intensity}, ${px})`;
+    const intensity = px / 255;
+    const startR = 148;
+    const startG = 230;
+    const startB = 255;
+    const endR = 92;
+    const endG = 255;
+    const endB = 103;
+    const red = startR - (startR - endR) * intensity;
+    const green = startG - (startG - endG) * intensity;
+    const blue = startB - (startB - endB) * intensity;
+    return `rgba(${red}, ${green}, ${blue}, ${px})`;
   }
 }

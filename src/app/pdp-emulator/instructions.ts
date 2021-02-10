@@ -107,3 +107,5 @@ export const STF_RANGE = [
 export const IOT = 0o72;
 export const TYI = 0o0004;
 export const DPY = 0o0007;
+export const RPB = 0o0002;
+export const RRB = 0o0030;

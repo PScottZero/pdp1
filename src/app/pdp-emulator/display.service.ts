@@ -15,10 +15,15 @@ export class DisplayService {
     setInterval(() => this.refresh(), 10);
   }
 
-  setXY(x: number, y: number): void {
+  setXY(x: number, y: number, intensity: number): void {
     x = Math.floor(x / 4);
     y = Math.floor(y / 4);
-    this.data[y * DISPLAY_SIZE + x] = 1;
+    if ((intensity & 0b100) != 0) {
+      intensity = -(~intensity & 0b11) + 4;
+    } else {
+      intensity += 5;
+    }
+    this.data[y * DISPLAY_SIZE + x] = intensity / 8;
   }
 
   refresh(): void {
