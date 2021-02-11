@@ -2,7 +2,7 @@
   display: grid;
   grid-template-rows: calc(100vh - 6em);
   grid-template-columns: 60% 40%;
-  grid-template-areas: "console display";
+  grid-template-areas: 'console display';
 }
 
 app-console {

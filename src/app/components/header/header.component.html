@@ -1,3 +1,4 @@
 <div id="header">
-  <img src="assets/images/logo.svg" alt="Logo" />
+  <img src="assets/images/logo.svg" alt="Logo" (click)='toggleSidebar()'/>
 </div>
+<app-sidebar [ngClass]="showSidebar ? 'show' : 'hide'"></app-sidebar>

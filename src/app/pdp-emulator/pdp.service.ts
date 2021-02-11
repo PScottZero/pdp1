@@ -4,6 +4,7 @@ import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
 import { DisplayService } from './display.service';
+import { SPACEWAR } from './spacewar';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -11,7 +12,7 @@ const AC_SAVE_ADDR = 0o100;
 const SUB_ADDR = 0o101;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
-const CYCLE_COUNT = 10000;
+const CYCLE_COUNT = 5000;
 
 @Injectable({
   providedIn: 'root',
@@ -55,8 +56,9 @@ export class PDPService {
     this.showDisplay = false;
     this.skipped = false;
     this.jumped = false;
-    this.hardwareMultiply = true;
-    this.load('dpys5.rim');
+    this.hardwareMultiply = false;
+    this.mem = SPACEWAR;
+    //this.load('dpys5.rim');
   }
 
   stepRun(): void {
@@ -258,23 +260,11 @@ export class PDPService {
         break;
 
       case instruction.CAL_JDA:
-        if (!indirect) {
-          // Call Subroutine
-          // cal Y
-          this.jumped = true;
-          this.write(AC_SAVE_ADDR, this.AC, false);
-          this.incPC();
-          this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
-          this.setPC(SUB_ADDR);
-        } else {
-          // Jump and Deposit Accumulator
-          // jda Y
-          this.jumped = true;
-          this.write(Y, this.AC, false);
-          this.incPC();
-          this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
-          this.setPC(Y + 1);
-        }
+        this.jumped = true;
+        this.write(indirect ? Y : AC_SAVE_ADDR, this.AC, false);
+        this.incPC();
+        this.setAC(this.PC | (helper.boolToBit(this.overflow) << 17));
+        this.setPC(indirect ? Y + 1 : AC_SAVE_ADDR + 1);
         break;
 
       // Skip if Accumulator and Y differ
@@ -396,7 +386,7 @@ export class PDPService {
         // Skip on ZERO Accumulator
         // sza
         if ((Y & instruction.SZA) != 0) {
-          if (this.AC == 0) {
+          if (this.AC == 0 || indirect) {
             this.skipped = true;
             this.incPC();
           }
@@ -405,7 +395,7 @@ export class PDPService {
         // Skip on Plus Accumulator
         // spa
         if ((Y & instruction.SPA) != 0) {
-          if (helper.isPositive(this.AC)) {
+          if (helper.isPositive(this.AC) || indirect) {
             this.skipped = true;
             this.incPC();
           }
@@ -414,7 +404,7 @@ export class PDPService {
         // Skip on Minus Accumulator
         // sma
         if ((Y & instruction.SMA) != 0) {
-          if (!helper.isPositive(this.AC)) {
+          if (!helper.isPositive(this.AC) || indirect) {
             this.skipped = true;
             this.incPC();
           }
@@ -423,7 +413,7 @@ export class PDPService {
         // Skip on ZERO Overflow
         // szo
         if ((Y & instruction.SZO) != 0) {
-          if (!this.overflow) {
+          if (!this.overflow || indirect) {
             this.skipped = true;
             this.incPC();
           }
@@ -433,7 +423,7 @@ export class PDPService {
         // Skip on Plus In-Out Register
         // spi
         if ((Y & instruction.SPI) != 0) {
-          if (helper.isPositive(this.IO)) {
+          if (helper.isPositive(this.IO) || indirect) {
             this.skipped = true;
             this.incPC();
           }
@@ -442,11 +432,11 @@ export class PDPService {
         if (instruction.SZS_RANGE.includes(Y & mask.SZS_MASK)) {
           // Skip on ZERO Switch
           // szs
-          this.senseSwitchSkip(Y);
+          this.senseSwitchSkip(Y, indirect);
         } else if (instruction.SZF_RANGE.includes(Y & mask.MASK_3)) {
           // Skip on ZERO Program Flag
           // szf
-          this.programFlagSkip(Y);
+          this.programFlagSkip(Y, indirect);
         }
         this.incPC();
         break;
@@ -510,7 +500,7 @@ export class PDPService {
             break;
 
           case instruction.DPY:
-            this.setDisplayCoords(Y);
+            this.setDisplayCoords();
             break;
 
           // Read Perforated Tape, Binary
@@ -608,24 +598,14 @@ export class PDPService {
   }
 
   subtract(value: number): void {
-    this.setAC(~this.AC);
-    let result = this.AC + value;
-    result += (result >> 18) & mask.MASK_1;
-    this.overflow =
-      (helper.isPositive(this.AC) &&
-        helper.isPositive(value) &&
-        !helper.isPositive(result)) ||
-      (!helper.isPositive(this.AC) &&
-        !helper.isPositive(value) &&
-        helper.isPositive(result));
-    this.setAC(~result);
+    this.add(~value & mask.MASK_18);
   }
 
   multiply(value: number): void {
-    if (!this.hardwareMultiply) {
-      let magnitude = helper.magnitude(this.AC) * helper.magnitude(value);
+    if (this.hardwareMultiply) {
+      let magnitude = helper.abs(this.AC) * helper.abs(value);
       const sign = helper.sign(this.AC) ^ helper.sign(value);
-      if (sign == 1) {
+      if (sign) {
         magnitude = ~magnitude;
       }
       this.setAC(helper.rightShift(magnitude, 17));
@@ -636,42 +616,54 @@ export class PDPService {
       }
     } else {
       if (this.IO & 1) {
-        this.AC += value;
-        this.AC = (this.AC >> 18) & mask.MASK_1;
-        this.IO = (this.IO >> 1) | ((this.AC & 1) << 17);
-        this.AC >>= 1;
+        this.add(value);
       }
+      this.rotateACIORight(1);
+      this.AC &= mask.MASK_17;
     }
   }
 
   divide(value: number): void {
-    if (helper.magnitude(this.AC) < helper.magnitude(value)) {
-      let dividend =
-        helper.leftShift(this.AC & mask.MASK_17, 17) |
-        ((this.IO >> 1) & mask.MASK_17);
-      if (!helper.isPositive(this.AC)) {
-        dividend = ~dividend & mask.MASK_34;
+    if (this.hardwareMultiply) {
+      if (helper.abs(this.AC) < helper.abs(value)) {
+        let dividend =
+          helper.leftShift(this.AC & mask.MASK_17, 17) |
+          ((this.IO >> 1) & mask.MASK_17);
+        if (!helper.isPositive(this.AC)) {
+          dividend = ~dividend & mask.MASK_34;
+        }
+        let magnitude = Math.floor(dividend / helper.abs(value));
+        let remainder = dividend % helper.abs(value);
+        const sign = helper.sign(this.AC) ^ helper.sign(value);
+        if (sign) {
+          magnitude = ~magnitude;
+        }
+        if (helper.sign(this.AC)) {
+          remainder = ~remainder;
+        }
+        this.setAC(magnitude);
+        this.setIO(remainder);
+        if (this.AC == NEG_ZERO) {
+          this.setAC(0);
+        }
+        if (this.IO == NEG_ZERO) {
+          this.setIO(0);
+        }
+        this.incPC();
+      } else {
+        this.overflow = true;
       }
-      let magnitude = Math.floor(dividend / helper.magnitude(value));
-      let remainder = dividend % helper.magnitude(value);
-      const sign = helper.sign(this.AC) ^ helper.sign(value);
-      if (sign == 1) {
-        magnitude = ~magnitude;
-      }
-      if (helper.sign(this.AC) == 1) {
-        remainder = ~remainder;
-      }
-      this.setAC(magnitude);
-      this.setIO(remainder);
-      if (this.AC == NEG_ZERO) {
-        this.setAC(0);
-      }
-      if (this.IO == NEG_ZERO) {
-        this.setIO(0);
-      }
-      this.incPC();
     } else {
-      this.overflow = true;
+      this.rotateACIOLeft(1);
+      this.IO = (this.IO & 0o777776) | (~helper.sign(this.AC) & mask.MASK_1);
+      if (this.IO & 1) {
+        this.subtract(value);
+      } else {
+        this.add(value + 1);
+      }
+      if (this.AC == NEG_ZERO) {
+        this.AC = 0;
+      }
     }
   }
 
@@ -746,23 +738,23 @@ export class PDPService {
     this.write(Y, this.AC, indirect);
   }
 
-  programFlagSkip(Y: number): void {
-    if (Y <= 6 && !this.programFlags[Y]) {
+  programFlagSkip(Y: number, indirect: boolean): void {
+    if (Y <= 6 && (!this.programFlags[Y] || indirect)) {
       this.skipped = true;
       this.incPC();
     } else {
       let allFlags = false;
       this.programFlags.forEach((flagValue) => (allFlags ||= flagValue));
-      if (!allFlags) {
+      if (!allFlags || indirect) {
         this.skipped = true;
         this.incPC();
       }
     }
   }
 
-  senseSwitchSkip(Y: number): void {
+  senseSwitchSkip(Y: number, indirect: boolean): void {
     const switchIndex = (Y >> 3) & mask.MASK_1;
-    if (switchIndex <= 6 && !this.senseSwitches[switchIndex]) {
+    if (switchIndex <= 6 && (!this.senseSwitches[switchIndex] || indirect)) {
       this.skipped = true;
       this.incPC();
     } else {
@@ -770,7 +762,7 @@ export class PDPService {
       this.senseSwitches.forEach(
         (switchValue) => (allSwitches ||= switchValue)
       );
-      if (!allSwitches) {
+      if (!allSwitches || indirect) {
         this.skipped = true;
         this.incPC();
       }
@@ -780,20 +772,20 @@ export class PDPService {
   setProgramFlag(Y: number): void {
     const switchIndex = Y & mask.MASK_3;
     if (switchIndex <= 6) {
-      this.senseSwitches[switchIndex] = true;
+      this.programFlags[switchIndex] = true;
     } else {
-      for (let index = 0; index < this.senseSwitches.length; index++) {
-        this.senseSwitches[index] = true;
+      for (let index = 0; index < this.programFlags.length; index++) {
+        this.programFlags[index] = true;
       }
     }
   }
 
   clearProgramFlag(Y: number): void {
     if (Y <= 6) {
-      this.senseSwitches[Y] = false;
+      this.programFlags[Y] = false;
     } else {
-      for (let index = 0; index < this.senseSwitches.length; index++) {
-        this.senseSwitches[index] = false;
+      for (let index = 0; index < this.programFlags.length; index++) {
+        this.programFlags[index] = false;
       }
     }
   }
@@ -814,7 +806,7 @@ export class PDPService {
     this.setPC(this.PC + 1);
   }
 
-  setDisplayCoords(Y: number): void {
+  setDisplayCoords(): void {
     let x = (this.AC >> 8) & mask.MASK_10;
     let y = (this.IO >> 8) & mask.MASK_10;
     if (((x >> 9) & mask.MASK_1) == 1) {
@@ -827,7 +819,7 @@ export class PDPService {
     } else {
       y = 511 - y;
     }
-    this.display.setXY(x, y, (Y >> 6) & mask.MASK_3);
+    this.display.setXY(x, y);
   }
 
   load(tapeName: string): void {

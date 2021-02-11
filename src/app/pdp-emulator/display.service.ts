@@ -15,24 +15,19 @@ export class DisplayService {
     requestAnimationFrame(() => this.displayLoop());
   }
 
-  displayLoop() {
+  displayLoop(): void {
     for (let index = 0; index < DISPLAY_SIZE * DISPLAY_SIZE; index++) {
       if (this.data[index] > 0) {
-        this.data[index] -= 0.1;
+        this.data[index] -= 0.05;
       }
     }
     this.refreshEmitter.emit();
     requestAnimationFrame(() => this.displayLoop());
   }
 
-  setXY(x: number, y: number, intensity: number): void {
+  setXY(x: number, y: number): void {
     x = Math.floor(x / 4);
     y = Math.floor(y / 4);
-    if ((intensity & 0b100) != 0) {
-      intensity = -(~intensity & 0b11) + 4;
-    } else {
-      intensity += 5;
-    }
-    this.data[y * DISPLAY_SIZE + x] = intensity / 8;
+    this.data[y * DISPLAY_SIZE + x] = 1;
   }
 }

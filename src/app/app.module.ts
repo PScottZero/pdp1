@@ -8,6 +8,7 @@ import { SwitchComponent } from './components/switch/switch.component';
 import { ContentComponent } from './components/content/content.component';
 import { DisplayComponent } from './components/display/display.component';
 import { MenuButtonComponent } from './components/menu-button/menu-button.component';
+import { SidebarComponent } from './components/sidebar/sidebar.component';
 
 @NgModule({
   declarations: [
@@ -18,6 +19,7 @@ import { MenuButtonComponent } from './components/menu-button/menu-button.compon
     ContentComponent,
     DisplayComponent,
     MenuButtonComponent,
+    SidebarComponent,
   ],
   imports: [BrowserModule],
   providers: [],

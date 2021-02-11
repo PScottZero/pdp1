@@ -12,7 +12,7 @@ export function leftShift(value: number, shift: number): number {
   return value * Math.pow(2, shift);
 }
 
-export function magnitude(value: number): number {
+export function abs(value: number): number {
   if (isPositive(value)) {
     return value;
   } else {
