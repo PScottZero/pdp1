@@ -34,9 +34,9 @@ export class PDPService {
   runProcess: NodeJS.Timeout;
   tapeBytes: Uint8Array;
   tapeIndex: number;
+  hardwareMultiply: boolean;
   skipped: boolean;
   jumped: boolean;
-  opList: string[];
 
   constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
@@ -55,8 +55,8 @@ export class PDPService {
     this.showDisplay = false;
     this.skipped = false;
     this.jumped = false;
-    this.opList = [];
-    this.load('snowflake_sa-100.bin');
+    this.hardwareMultiply = true;
+    this.load('dpys5.rim');
   }
 
   stepRun(): void {
@@ -96,16 +96,12 @@ export class PDPService {
   }
 
   decode(): void {
-    const word = this.mem[this.PC];
+    let word = this.mem[this.PC];
     const opcode = (word >> 12) & mask.MASK_OPCODE;
     const shiftOpcode = (word >> 9) & mask.MASK_9;
     const indirect = ((word >> 12) & mask.MASK_1) != 0;
     const Y = word & mask.MASK_12;
     const currPC = this.PC;
-    const fullOpcode = (word >> 12) & mask.MASK_6;
-    if (!this.opList.includes(fullOpcode.toString(8)) && this.PC < 0o7000) {
-      this.opList.push(fullOpcode.toString(8));
-    }
 
     switch (opcode) {
       // Add
@@ -132,6 +128,7 @@ export class PDPService {
       // Divide
       // div Y
       case instruction.DIV:
+        this.skipped = true;
         this.divide(this.read(Y, indirect));
         this.incPC();
         break;
@@ -229,7 +226,13 @@ export class PDPService {
       case instruction.XCT:
         this.jumped = false;
         this.skipped = false;
-        this.setPC(Y);
+        do {
+          if ((word & 0o10000) == 0) {
+            this.setPC(word & mask.MASK_12);
+          } else {
+            word = this.read(Y, false);
+          }
+        } while ((word & 0o10000) != 0);
         this.decode();
         if (!this.jumped) {
           this.setPC(currPC);
@@ -605,22 +608,39 @@ export class PDPService {
   }
 
   subtract(value: number): void {
-    if (!(value == 0 && this.AC == NEG_ZERO)) {
-      this.add(~value & mask.MASK_18);
-    }
+    this.setAC(~this.AC);
+    let result = this.AC + value;
+    result += (result >> 18) & mask.MASK_1;
+    this.overflow =
+      (helper.isPositive(this.AC) &&
+        helper.isPositive(value) &&
+        !helper.isPositive(result)) ||
+      (!helper.isPositive(this.AC) &&
+        !helper.isPositive(value) &&
+        helper.isPositive(result));
+    this.setAC(~result);
   }
 
   multiply(value: number): void {
-    let magnitude = helper.magnitude(this.AC) * helper.magnitude(value);
-    const sign = helper.sign(this.AC) ^ helper.sign(value);
-    if (sign == 1) {
-      magnitude = ~magnitude;
-    }
-    this.setAC(helper.rightShift(magnitude, 17));
-    this.setIO(((magnitude & mask.MASK_17) << 1) | sign);
-    if (this.AC == NEG_ZERO && this.IO == NEG_ZERO) {
-      this.setAC(0);
-      this.setIO(0);
+    if (!this.hardwareMultiply) {
+      let magnitude = helper.magnitude(this.AC) * helper.magnitude(value);
+      const sign = helper.sign(this.AC) ^ helper.sign(value);
+      if (sign == 1) {
+        magnitude = ~magnitude;
+      }
+      this.setAC(helper.rightShift(magnitude, 17));
+      this.setIO(((magnitude & mask.MASK_17) << 1) | sign);
+      if (this.AC == NEG_ZERO && this.IO == NEG_ZERO) {
+        this.setAC(0);
+        this.setIO(0);
+      }
+    } else {
+      if (this.IO & 1) {
+        this.AC += value;
+        this.AC = (this.AC >> 18) & mask.MASK_1;
+        this.IO = (this.IO >> 1) | ((this.AC & 1) << 17);
+        this.AC >>= 1;
+      }
     }
   }
 
@@ -632,7 +652,7 @@ export class PDPService {
       if (!helper.isPositive(this.AC)) {
         dividend = ~dividend & mask.MASK_34;
       }
-      let magnitude = dividend / helper.magnitude(value);
+      let magnitude = Math.floor(dividend / helper.magnitude(value));
       let remainder = dividend % helper.magnitude(value);
       const sign = helper.sign(this.AC) ^ helper.sign(value);
       if (sign == 1) {
@@ -650,6 +670,8 @@ export class PDPService {
         this.setIO(0);
       }
       this.incPC();
+    } else {
+      this.overflow = true;
     }
   }
 
