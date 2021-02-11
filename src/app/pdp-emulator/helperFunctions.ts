@@ -38,3 +38,7 @@ export function onesCount(value: number): number {
 export function boolToBit(bool: boolean): number {
   return bool ? 1 : 0;
 }
+
+export function cond(condition: boolean, indirect: boolean) {
+  return (condition && !indirect) || (!condition && indirect);
+}

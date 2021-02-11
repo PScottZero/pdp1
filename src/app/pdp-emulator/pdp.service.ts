@@ -9,7 +9,6 @@ import { SPACEWAR } from './spacewar';
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
 const AC_SAVE_ADDR = 0o100;
-const SUB_ADDR = 0o101;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
 const CYCLE_COUNT = 5000;
@@ -56,9 +55,8 @@ export class PDPService {
     this.showDisplay = false;
     this.skipped = false;
     this.jumped = false;
-    this.hardwareMultiply = false;
-    this.mem = SPACEWAR;
-    //this.load('dpys5.rim');
+    this.hardwareMultiply = true;
+    this.load('dpys5.rim');
   }
 
   stepRun(): void {
@@ -104,6 +102,7 @@ export class PDPService {
     const indirect = ((word >> 12) & mask.MASK_1) != 0;
     const Y = word & mask.MASK_12;
     const currPC = this.PC;
+    let shouldSkip = false;
 
     switch (opcode) {
       // Add
@@ -383,60 +382,52 @@ export class PDPService {
       // Skip Group
       // skp
       case instruction.SKIP_GROUP:
+        shouldSkip = false;
+
         // Skip on ZERO Accumulator
         // sza
         if ((Y & instruction.SZA) != 0) {
-          if (this.AC == 0 || indirect) {
-            this.skipped = true;
-            this.incPC();
-          }
+          shouldSkip ||= helper.cond(this.AC == 0, indirect);
         }
 
         // Skip on Plus Accumulator
         // spa
         if ((Y & instruction.SPA) != 0) {
-          if (helper.isPositive(this.AC) || indirect) {
-            this.skipped = true;
-            this.incPC();
-          }
+          shouldSkip ||= helper.cond(helper.isPositive(this.AC), indirect);
         }
 
         // Skip on Minus Accumulator
         // sma
         if ((Y & instruction.SMA) != 0) {
-          if (!helper.isPositive(this.AC) || indirect) {
-            this.skipped = true;
-            this.incPC();
-          }
+          shouldSkip ||= helper.cond(!helper.isPositive(this.AC), indirect);
         }
 
         // Skip on ZERO Overflow
         // szo
         if ((Y & instruction.SZO) != 0) {
-          if (!this.overflow || indirect) {
-            this.skipped = true;
-            this.incPC();
-          }
+          shouldSkip ||= helper.cond(!this.overflow, indirect);
           this.overflow = false;
         }
 
         // Skip on Plus In-Out Register
         // spi
         if ((Y & instruction.SPI) != 0) {
-          if (helper.isPositive(this.IO) || indirect) {
-            this.skipped = true;
-            this.incPC();
-          }
+          shouldSkip ||= helper.cond(helper.isPositive(this.IO), indirect);
         }
 
         if (instruction.SZS_RANGE.includes(Y & mask.SZS_MASK)) {
           // Skip on ZERO Switch
           // szs
-          this.senseSwitchSkip(Y, indirect);
+          shouldSkip ||= this.senseSwitchSkip(Y, indirect);
         } else if (instruction.SZF_RANGE.includes(Y & mask.MASK_3)) {
           // Skip on ZERO Program Flag
           // szf
-          this.programFlagSkip(Y, indirect);
+          shouldSkip ||= this.programFlagSkip(Y, indirect);
+        }
+
+        if (shouldSkip) {
+          this.skipped = true;
+          this.incPC();
         }
         this.incPC();
         break;
@@ -738,34 +729,26 @@ export class PDPService {
     this.write(Y, this.AC, indirect);
   }
 
-  programFlagSkip(Y: number, indirect: boolean): void {
-    if (Y <= 6 && (!this.programFlags[Y] || indirect)) {
-      this.skipped = true;
-      this.incPC();
+  programFlagSkip(Y: number, indirect: boolean): boolean {
+    if (Y <= 6) {
+      return helper.cond(!this.programFlags[Y], indirect);
     } else {
       let allFlags = false;
       this.programFlags.forEach((flagValue) => (allFlags ||= flagValue));
-      if (!allFlags || indirect) {
-        this.skipped = true;
-        this.incPC();
-      }
+      return helper.cond(!allFlags, indirect);
     }
   }
 
-  senseSwitchSkip(Y: number, indirect: boolean): void {
+  senseSwitchSkip(Y: number, indirect: boolean): boolean {
     const switchIndex = (Y >> 3) & mask.MASK_1;
-    if (switchIndex <= 6 && (!this.senseSwitches[switchIndex] || indirect)) {
-      this.skipped = true;
-      this.incPC();
+    if (switchIndex <= 6) {
+      return helper.cond(!this.senseSwitches[switchIndex], indirect);
     } else {
       let allSwitches = false;
       this.senseSwitches.forEach(
         (switchValue) => (allSwitches ||= switchValue)
       );
-      if (!allSwitches || indirect) {
-        this.skipped = true;
-        this.incPC();
-      }
+      return helper.cond(!allSwitches, indirect);
     }
   }
 
