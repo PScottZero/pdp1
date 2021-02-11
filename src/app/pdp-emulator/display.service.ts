@@ -12,7 +12,17 @@ export class DisplayService {
   constructor() {
     this.data = Array<number>(DISPLAY_SIZE * DISPLAY_SIZE).fill(0);
     this.refreshEmitter = new EventEmitter<void>();
-    setInterval(() => this.refresh(), 10);
+    requestAnimationFrame(() => this.displayLoop());
+  }
+
+  displayLoop() {
+    for (let index = 0; index < DISPLAY_SIZE * DISPLAY_SIZE; index++) {
+      if (this.data[index] > 0) {
+        this.data[index] -= 0.1;
+      }
+    }
+    this.refreshEmitter.emit();
+    requestAnimationFrame(() => this.displayLoop());
   }
 
   setXY(x: number, y: number, intensity: number): void {
@@ -24,14 +34,5 @@ export class DisplayService {
       intensity += 5;
     }
     this.data[y * DISPLAY_SIZE + x] = intensity / 8;
-  }
-
-  refresh(): void {
-    for (let index = 0; index < DISPLAY_SIZE * DISPLAY_SIZE; index++) {
-      if (this.data[index] > 0) {
-        this.data[index] -= 0.02;
-      }
-    }
-    this.refreshEmitter.emit();
   }
 }

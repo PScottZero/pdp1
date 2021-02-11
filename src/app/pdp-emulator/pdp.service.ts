@@ -11,7 +11,7 @@ const AC_SAVE_ADDR = 0o100;
 const SUB_ADDR = 0o101;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
-const CYCLE_COUNT = 1000;
+const CYCLE_COUNT = 10000;
 
 @Injectable({
   providedIn: 'root',
@@ -815,8 +815,8 @@ export class PDPService {
   }
 
   setDisplayCoords(Y: number): void {
-    let x = this.AC & mask.MASK_10;
-    let y = this.IO & mask.MASK_10;
+    let x = (this.AC >> 8) & mask.MASK_10;
+    let y = (this.IO >> 8) & mask.MASK_10;
     if (((x >> 9) & mask.MASK_1) == 1) {
       x = 511 - (~x & mask.MASK_9);
     } else {
@@ -850,6 +850,12 @@ export class PDPService {
           this.tapeIndex++;
         }
       }
+      while (this.PC >= 0o7751) {
+        this.decode();
+      }
+      this.MB = this.mem[this.PC];
+      this.IR = (this.MB >> 13) & mask.MASK_5;
+      this.updateEmitter.emit();
     };
     xhr.send();
   }
