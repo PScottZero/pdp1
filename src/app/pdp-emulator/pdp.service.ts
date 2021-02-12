@@ -10,7 +10,7 @@ const NEG_ZERO = 0o777777;
 const AC_SAVE_ADDR = 0o100;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
-const CYCLE_COUNT = 5000;
+const CYCLE_COUNT = 1667;
 
 @Injectable({
   providedIn: 'root',
@@ -28,7 +28,6 @@ export class PDPService {
   halt: boolean;
   senseSwitches: boolean[];
   programFlags: boolean[];
-  runProcess: NodeJS.Timeout;
   tapeBytes: Uint8Array;
   tapeIndex: number;
   controller: number;
@@ -61,12 +60,16 @@ export class PDPService {
   stepRun(): void {
     for (let _ = 0; _ < CYCLE_COUNT; _++) {
       if (!this.halt) {
+        if (this.PC == 0o10) {
+          // this.PC = 0o500;
+          // this.testWord = 0o677721
+        }
         this.decode();
       }
     }
-    this.MB = this.mem[this.PC];
-    this.IR = (this.MB >> 13) & mask.MASK_5;
-    this.updateEmitter.emit();
+    // this.MB = this.mem[this.PC];
+    // this.IR = (this.MB >> 13) & mask.MASK_5;
+    this.display.refreshEmitter.emit();
     if (!this.halt) {
       requestAnimationFrame(() => this.stepRun());
     }
