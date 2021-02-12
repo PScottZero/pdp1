@@ -22,6 +22,7 @@ export class ConsoleComponent implements OnInit {
   singleStepSwitch: number[];
   switchImage: HTMLImageElement;
   largeSwitchImage: HTMLImageElement;
+  showConsole: boolean;
 
   constructor(private pdp: PDPService) {}
 
@@ -34,6 +35,7 @@ export class ConsoleComponent implements OnInit {
     this.switchImage.src = 'assets/images/switch.svg';
     this.largeSwitchImage = new Image();
     this.largeSwitchImage.src = 'assets/images/switch_large.svg';
+    this.showConsole = false;
     this.pdp.updateEmitter.subscribe(() => {
       this.drawState();
     });
@@ -290,5 +292,9 @@ export class ConsoleComponent implements OnInit {
       y <= switchPosition[1] + 40 &&
       y >= switchPosition[1] - 40
     );
+  }
+
+  toggleConsole() {
+    this.showConsole = !this.showConsole;
   }
 }

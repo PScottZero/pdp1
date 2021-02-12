@@ -32,8 +32,8 @@ export class DisplayComponent implements OnInit {
         this.context.fillRect(
           index % DISPLAY_SIZE,
           Math.floor(index / DISPLAY_SIZE),
-          1,
-          1
+          2,
+          2
         );
         this.display.data[index] -= 0.025;
       }

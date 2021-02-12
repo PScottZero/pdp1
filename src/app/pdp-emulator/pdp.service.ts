@@ -60,15 +60,12 @@ export class PDPService {
   stepRun(): void {
     for (let _ = 0; _ < CYCLE_COUNT; _++) {
       if (!this.halt) {
-        if (this.PC == 0o10) {
-          // this.PC = 0o500;
-          // this.testWord = 0o677721
-        }
         this.decode();
       }
     }
-    // this.MB = this.mem[this.PC];
-    // this.IR = (this.MB >> 13) & mask.MASK_5;
+    this.MB = this.mem[this.PC];
+    this.IR = (this.MB >> 13) & mask.MASK_5;
+    this.updateEmitter.emit();
     this.display.refreshEmitter.emit();
     if (!this.halt) {
       requestAnimationFrame(() => this.stepRun());

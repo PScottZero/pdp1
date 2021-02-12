@@ -1,4 +1,4 @@
-<div id="console">
+<div id="console" [ngClass]="showConsole ? 'show' : 'hide'">
   <img src="../../../assets/images/console.svg" alt="Control Board" />
   <canvas
     #canvas
@@ -17,4 +17,5 @@
       alt="Switch Large"
     />
   </div>
+  <div id="tab" (click)='toggleConsole()'></div>
 </div>
