@@ -4,6 +4,7 @@ import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
 import { DisplayService } from './display.service';
+import { TapeConfig } from '../components/tape-list/tape-config';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -36,6 +37,10 @@ export class PDPService {
   jumped: boolean;
   updateEmitter: EventEmitter<void>;
 
+  enableCustomStartAddr: boolean;
+  customStartAddr: number;
+  expectedStartAddr: number;
+
   constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
     this.mem = Array<number>(MEM_SIZE).fill(0);
@@ -54,12 +59,18 @@ export class PDPService {
     this.skipped = false;
     this.jumped = false;
     this.hardwareMultiply = true;
+    this.enableCustomStartAddr = false;
+    this.customStartAddr = 0;
+    this.expectedStartAddr = 0;
     this.load('dpys5.rim');
   }
 
   stepRun(): void {
     for (let _ = 0; _ < CYCLE_COUNT; _++) {
       if (!this.halt) {
+        if (this.enableCustomStartAddr && this.PC == this.expectedStartAddr) {
+          this.PC = this.customStartAddr;
+        }
         this.decode();
       }
     }
@@ -832,5 +843,20 @@ export class PDPService {
       this.halt = true;
     }
     return word;
+  }
+
+  loadTapeConfig(tapeConfig: TapeConfig): void {
+    this.hardwareMultiply = tapeConfig.hardwareMultiply;
+    this.testWord = tapeConfig.testWord != undefined ? tapeConfig.testWord : 0;
+    this.enableCustomStartAddr =
+      tapeConfig.alternateAddress != undefined ? true : false;
+    this.expectedStartAddr =
+      tapeConfig.startAddress != undefined ? tapeConfig.startAddress : 0;
+    this.customStartAddr =
+      tapeConfig.alternateAddress != undefined
+        ? tapeConfig.alternateAddress
+        : 0;
+    this.halt = true;
+    this.load(tapeConfig.fileName);
   }
 }

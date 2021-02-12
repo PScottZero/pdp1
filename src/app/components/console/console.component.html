@@ -1,5 +1,4 @@
-<div id="console" [ngClass]="showConsole ? 'show' : 'hide'"
-  (mouseenter)='showConsole = true' (mouseleave)="showConsole = false">
+<div id="console">
   <img src="../../../assets/images/console.svg" alt="Control Board" />
   <canvas
     #canvas
@@ -17,8 +16,5 @@
       src="assets/images/switch_large.svg"
       alt="Switch Large"
     />
-  </div>
-  <div id="tab">
-    <img id="arrow" [ngClass]="showConsole ? 'rotate-arrow' : ''" src="assets/images/arrow.svg" alt="Arrow">
   </div>
 </div>

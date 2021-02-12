@@ -1,5 +1,4 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { PDPService } from 'src/app/pdp-emulator/pdp.service';
+import { Component, ElementRef, Input, OnInit, ViewChild } from '@angular/core';
 import {
   DisplayService,
   DISPLAY_SIZE,
@@ -13,6 +12,7 @@ import {
 export class DisplayComponent implements OnInit {
   @ViewChild('canvas', { static: true }) canvas: ElementRef<HTMLCanvasElement>;
   context: CanvasRenderingContext2D;
+  @Input() shrinkDisplay: boolean;
 
   constructor(private display: DisplayService) {}
 

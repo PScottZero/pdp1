@@ -1,0 +1,18 @@
+<div
+  id="sidebar"
+  [ngClass]="expand ? 'show' : 'hide'"
+  (mouseenter)="unhideConsole()"
+  (mouseleave)="hideConsole()"
+>
+  <img id="logo" src="assets/images/logo.svg" alt="Logo" />
+  <app-console></app-console>
+  <div id="tab">
+    <img
+      id="arrow"
+      [ngClass]="expand ? 'rotate-arrow' : ''"
+      src="assets/images/arrow.svg"
+      alt="Arrow"
+    />
+  </div>
+  <app-tape-list></app-tape-list>
+</div>

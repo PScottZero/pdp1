@@ -8,6 +8,7 @@ import { PDPService } from './pdp-emulator/pdp.service';
 })
 export class AppComponent {
   title = 'pdp1';
+  showSidebar = false;
 
   constructor(private pdp: PDPService) {}
 
@@ -69,5 +70,9 @@ export class AppComponent {
         this.pdp.controller &= ~0o400000;
         break;
     }
+  }
+
+  setSidebarVisible(visible: boolean): void {
+    this.showSidebar = visible;
   }
 }

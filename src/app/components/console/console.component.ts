@@ -1,4 +1,11 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  Output,
+  ViewChild,
+  EventEmitter,
+} from '@angular/core';
 import { PDPService } from '../../pdp-emulator/pdp.service';
 import * as helper from '../../pdp-emulator/helperFunctions';
 
@@ -292,9 +299,5 @@ export class ConsoleComponent implements OnInit {
       y <= switchPosition[1] + 40 &&
       y >= switchPosition[1] - 40
     );
-  }
-
-  toggleConsole() {
-    this.showConsole = !this.showConsole;
   }
 }

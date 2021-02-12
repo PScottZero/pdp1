@@ -1,2 +1,2 @@
-<app-console></app-console>
-<app-display></app-display>
+<app-sidebar (shouldResize)="setSidebarVisible($event)"></app-sidebar>
+<app-display [shrinkDisplay]="showSidebar"></app-display>
