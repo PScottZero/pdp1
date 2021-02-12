@@ -1,4 +1,3 @@
-export const MASK_34 = 0o177777777777;
 export const MASK_18 = 0o777777;
 export const MASK_17 = 0o377777;
 export const MASK_12 = 0o7777;

@@ -9,4 +9,12 @@
   float: left;
 }
 
+.show {
+  left: 0;
+}
+
+.hide {
+  left: -30em;
+}
+
 /*# sourceMappingURL=header.component.css.map */

@@ -1,4 +1,5 @@
 import { EventEmitter, Injectable } from '@angular/core';
+import * as mask from './masks';
 
 export const DISPLAY_SIZE = 256;
 
@@ -25,7 +26,20 @@ export class DisplayService {
     requestAnimationFrame(() => this.displayLoop());
   }
 
-  setXY(x: number, y: number): void {
+  setPixel(AC: number, IO: number): void {
+    let x = (AC >> 8) & mask.MASK_10;
+    let y = (IO >> 8) & mask.MASK_10;
+
+    if (((x >> 9) & mask.MASK_1) == 1) {
+      x = 511 - (~x & mask.MASK_9);
+    } else {
+      x += 511;
+    }
+    if (((y >> 9) & mask.MASK_1) == 1) {
+      y = 511 + (~y & mask.MASK_9);
+    } else {
+      y = 511 - y;
+    }
     x = Math.floor(x / 4);
     y = Math.floor(y / 4);
     this.data[y * DISPLAY_SIZE + x] = 1;

@@ -4,7 +4,6 @@ import * as helper from './helperFunctions';
 import * as mask from './masks';
 import { CLF_RANGE, STF_RANGE } from './instructions';
 import { DisplayService } from './display.service';
-import { SPACEWAR } from './spacewar';
 
 const MEM_SIZE = 0o10000;
 const NEG_ZERO = 0o777777;
@@ -29,14 +28,14 @@ export class PDPService {
   halt: boolean;
   senseSwitches: boolean[];
   programFlags: boolean[];
-  showDisplay: boolean;
-  updateEmitter: EventEmitter<void>;
   runProcess: NodeJS.Timeout;
   tapeBytes: Uint8Array;
   tapeIndex: number;
+  controller: number;
   hardwareMultiply: boolean;
   skipped: boolean;
   jumped: boolean;
+  updateEmitter: EventEmitter<void>;
 
   constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
@@ -52,7 +51,7 @@ export class PDPService {
     this.halt = true;
     this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
     this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
-    this.showDisplay = false;
+    this.controller = 0;
     this.skipped = false;
     this.jumped = false;
     this.hardwareMultiply = true;
@@ -486,12 +485,15 @@ export class PDPService {
 
       case instruction.IOT:
         switch (Y & mask.MASK_6) {
-          case instruction.TYI:
-            // TODO: Implement TYI
+          case instruction.IO_WAIT:
+            break;
+
+          case instruction.SW_CONTROLLER:
+            this.IO = this.controller;
             break;
 
           case instruction.DPY:
-            this.setDisplayCoords();
+            this.display.setPixel(this.AC, this.IO);
             break;
 
           // Read Perforated Tape, Binary
@@ -594,13 +596,14 @@ export class PDPService {
 
   multiply(value: number): void {
     if (this.hardwareMultiply) {
-      let magnitude = helper.abs(this.AC) * helper.abs(value);
       const sign = helper.sign(this.AC) ^ helper.sign(value);
-      if (sign) {
-        magnitude = ~magnitude;
-      }
+      const magnitude = helper.abs(this.AC) * helper.abs(value);
       this.setAC(helper.rightShift(magnitude, 17));
-      this.setIO(((magnitude & mask.MASK_17) << 1) | sign);
+      this.setIO((magnitude << 1) & mask.MASK_18);
+      if (sign) {
+        this.setAC(~this.AC);
+        this.setIO(~this.IO);
+      }
       if (this.AC == NEG_ZERO && this.IO == NEG_ZERO) {
         this.setAC(0);
         this.setIO(0);
@@ -617,12 +620,13 @@ export class PDPService {
   divide(value: number): void {
     if (this.hardwareMultiply) {
       if (helper.abs(this.AC) < helper.abs(value)) {
-        let dividend =
+        if (helper.sign(this.AC)) {
+          this.setAC(~this.AC);
+          this.setIO(~this.IO);
+        }
+        const dividend =
           helper.leftShift(this.AC & mask.MASK_17, 17) |
           ((this.IO >> 1) & mask.MASK_17);
-        if (!helper.isPositive(this.AC)) {
-          dividend = ~dividend & mask.MASK_34;
-        }
         let magnitude = Math.floor(dividend / helper.abs(value));
         let remainder = dividend % helper.abs(value);
         const sign = helper.sign(this.AC) ^ helper.sign(value);
@@ -789,22 +793,6 @@ export class PDPService {
     this.setPC(this.PC + 1);
   }
 
-  setDisplayCoords(): void {
-    let x = (this.AC >> 8) & mask.MASK_10;
-    let y = (this.IO >> 8) & mask.MASK_10;
-    if (((x >> 9) & mask.MASK_1) == 1) {
-      x = 511 - (~x & mask.MASK_9);
-    } else {
-      x += 512;
-    }
-    if (((y >> 9) & mask.MASK_1) == 1) {
-      y = 512 + (~y & mask.MASK_9);
-    } else {
-      y = 511 - y;
-    }
-    this.display.setXY(x, y);
-  }
-
   load(tapeName: string): void {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', `assets/tapes/${tapeName}`, true);
@@ -825,12 +813,7 @@ export class PDPService {
           this.tapeIndex++;
         }
       }
-      while (this.PC >= 0o7751) {
-        this.decode();
-      }
-      this.MB = this.mem[this.PC];
-      this.IR = (this.MB >> 13) & mask.MASK_5;
-      this.updateEmitter.emit();
+      this.continue();
     };
     xhr.send();
   }

@@ -105,7 +105,7 @@ export const STF_RANGE = [
 
 // IO
 export const IOT = 0o72;
-export const TYI = 0o0004;
-export const DPY = 0o0007;
+export const IO_WAIT = 0o00;
 export const RPB = 0o0002;
-export const RRB = 0o0030;
+export const DPY = 0o0007;
+export const SW_CONTROLLER = 0o0011;

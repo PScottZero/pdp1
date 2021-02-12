@@ -39,6 +39,6 @@ export function boolToBit(bool: boolean): number {
   return bool ? 1 : 0;
 }
 
-export function cond(condition: boolean, indirect: boolean) {
+export function cond(condition: boolean, indirect: boolean): boolean {
   return (condition && !indirect) || (!condition && indirect);
 }
