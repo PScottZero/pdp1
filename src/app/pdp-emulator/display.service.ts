@@ -13,6 +13,12 @@ export class DisplayService {
   constructor() {
     this.data = Array<number>(DISPLAY_SIZE * DISPLAY_SIZE).fill(0);
     this.refreshEmitter = new EventEmitter<void>();
+    requestAnimationFrame(() => this.step());
+  }
+
+  step(): void {
+    this.refreshEmitter.emit();
+    requestAnimationFrame(() => this.step());
   }
 
   setPixel(AC: number, IO: number): void {

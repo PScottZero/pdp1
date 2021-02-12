@@ -66,7 +66,6 @@ export class PDPService {
     this.MB = this.mem[this.PC];
     this.IR = (this.MB >> 13) & mask.MASK_5;
     this.updateEmitter.emit();
-    this.display.refreshEmitter.emit();
     if (!this.halt) {
       requestAnimationFrame(() => this.stepRun());
     }

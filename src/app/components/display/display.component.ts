@@ -14,7 +14,7 @@ export class DisplayComponent implements OnInit {
   @ViewChild('canvas', { static: true }) canvas: ElementRef<HTMLCanvasElement>;
   context: CanvasRenderingContext2D;
 
-  constructor(private display: DisplayService, private pdp: PDPService) {}
+  constructor(private display: DisplayService) {}
 
   ngOnInit(): void {
     this.context = this.canvas.nativeElement.getContext('2d');
@@ -44,7 +44,7 @@ export class DisplayComponent implements OnInit {
     if (px > 0.9) {
       return `rgba(171, 255, 255, 1)`;
     } else {
-      return `rgba(15, 133, 19, ${px})`;
+      return `rgba(23, 94, 25, ${px})`;
     }
   }
 }
