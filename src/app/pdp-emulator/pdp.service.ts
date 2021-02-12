@@ -62,7 +62,7 @@ export class PDPService {
     this.enableCustomStartAddr = false;
     this.customStartAddr = 0;
     this.expectedStartAddr = 0;
-    this.load('dpys5.rim');
+    this.load('snowflake_sa-100.bin');
   }
 
   stepRun(): void {
