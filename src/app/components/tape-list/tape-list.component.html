@@ -1,5 +1,10 @@
 <div id="tape-list">
-  <div class="list-item" *ngFor="let tape of tapes" [class.selected]="tape == selectedTape" (click)="selectTape(tape)">
+  <div
+    class="list-item"
+    *ngFor="let tape of tapes"
+    [class.selected]="tape == selectedTape"
+    (click)="selectTape(tape)"
+  >
     <p>{{ tape.name }}</p>
   </div>
 </div>
