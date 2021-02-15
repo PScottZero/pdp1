@@ -39,6 +39,9 @@ export function boolToBit(bool: boolean): number {
   return bool ? 1 : 0;
 }
 
-export function cond(condition: boolean, indirect: boolean): boolean {
-  return (condition && !indirect) || (!condition && indirect);
+export function overflow(a: number, b: number, c: number): boolean {
+  return (
+    (isPositive(a) && isPositive(b) && !isPositive(c)) ||
+    (!isPositive(a) && !isPositive(b) && isPositive(c))
+  );
 }

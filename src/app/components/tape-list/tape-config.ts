@@ -2,9 +2,9 @@ export class TapeConfig {
   constructor(
     public name: string,
     public fileName: string,
-    public hardwareMultiply: boolean,
-    public testWord?: number,
-    public startAddress?: number,
-    public alternateAddress?: number
+    public hardwareMultiply: boolean = true,
+    public testWord: number = 0,
+    public startAddress: number = 0,
+    public expectedStartAddress: number = 0
   ) {}
 }

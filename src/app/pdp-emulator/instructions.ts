@@ -78,13 +78,12 @@ export const SZF_RANGE = [
 export const OPERATE_GROUP = 0o76;
 export const CLI = 0o4000;
 export const LAT = 0o2000;
-export const LAT_CLA = 0o2200;
 export const LAP = 0o0100;
 export const CMA = 0o1000;
 export const HLT = 0o0400;
 export const CLA = 0o0200;
 export const NOP = 0o0000;
-export const CLF_RANGE = [
+export const CLF_STF_RANGE = [
   0o0001,
   0o0002,
   0o0003,
@@ -92,15 +91,6 @@ export const CLF_RANGE = [
   0o0005,
   0o0006,
   0o0007,
-];
-export const STF_RANGE = [
-  0o0011,
-  0o0012,
-  0o0013,
-  0o0014,
-  0o0015,
-  0o0016,
-  0o0017,
 ];
 
 // IO

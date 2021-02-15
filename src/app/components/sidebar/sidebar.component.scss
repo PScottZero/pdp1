@@ -1,56 +1,109 @@
 #sidebar {
   position: fixed;
   z-index: 2;
-  width: 60%;
-  height: 100%;
   background: #333333;
   transition: 0.5s ease-in-out;
   box-sizing: border-box;
   display: grid;
   padding: 2em;
   gap: 2em;
-  grid-template-columns: 100%;
-  grid-template-rows: 4em calc(100% - 24em) 16em;
-  grid-template-areas:
-    'header'
-    'console'
-    'tape-list';
+
+  @media screen and (min-width: 768px) {
+    width: 60%;
+    height: 100%;
+    grid-template-columns: 100%;
+    grid-template-rows: 4em calc(100% - 24em) 16em;
+    grid-template-areas:
+      'header'
+      'console'
+      'tape-list';
+  }
+
+  @media screen and (max-width: 768px) {
+    width: 100%;
+    height: 50%;
+    grid-template-columns: 100%;
+    grid-template-rows: 3em calc(100% - 5em);
+    grid-template-areas:
+      'header'
+      'tape-list';
+  }
 }
 
 #tab {
   position: absolute;
-  right: -2em;
-  width: 2em;
-  height: 8em;
   background: #333333;
-  top: 50%;
-  transform: translateY(-50%);
-  border-radius: 0 1em 1em 0;
+
+  @media screen and (min-width: 768px) {
+    right: -2em;
+    width: 2em;
+    height: 8em;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 0 1em 1em 0;
+  }
+
+  @media screen and (max-width: 768px) {
+    width: 8em;
+    height: 2em;
+    bottom: -2em;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 0 0 1em 1em;
+  }
 }
 
 #logo {
   grid-area: header;
   height: 100%;
+
+  @media screen and (max-width: 768px) {
+    margin: auto;
+  }
 }
 
 .show {
-  left: 0;
+  @media screen and (min-width: 768px) {
+    left: 0;
+  }
+  @media screen and (max-width: 768px) {
+    top: 0;
+  }
 }
 
 .hide {
-  left: calc(-60% + 1em);
+  @media screen and (min-width: 768px) {
+    left: calc(-60% + 1em);
+  }
+  @media screen and (max-width: 768px) {
+    top: calc(-50% + 1em);
+  }
 }
 
 #arrow {
   position: absolute;
   height: 2em;
-  top: 50%;
-  transform: translateY(-50%) translateX(0.5em);
   transition: 0.5s;
+
+  @media screen and (min-width: 768px) {
+    top: 50%;
+    transform: translateY(-50%) translateX(0.5em);
+  }
+
+  @media screen and (max-width: 768px) {
+    left: 50%;
+    transform: translateX(-50%) rotate(90deg);
+  }
 }
 
 .rotate-arrow {
-  transform: scaleX(-1) translateY(-50%) translateX(-0.5em) !important;
+  @media screen and (min-width: 768px) {
+    transform: scaleX(-1) translateY(-50%) translateX(-0.5em) !important;
+  }
+
+  @media screen and (max-width: 768px) {
+    transform: rotate(-90deg) translateY(-0.2em) !important;
+  }
 }
 
 app-console {

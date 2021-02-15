@@ -2,7 +2,6 @@ import { EventEmitter, Injectable } from '@angular/core';
 import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
-import { CLF_RANGE, STF_RANGE } from './instructions';
 import { DisplayService } from './display.service';
 import { TapeConfig } from '../components/tape-list/tape-config';
 
@@ -43,26 +42,8 @@ export class PDPService {
 
   constructor(private display: DisplayService) {
     this.updateEmitter = new EventEmitter<void>();
-    this.mem = Array<number>(MEM_SIZE).fill(0);
-    this.PC = 0;
-    this.AC = 0;
-    this.IO = 0;
-    this.MB = 0;
-    this.IR = 0;
-    this.selectedAddress = 0;
-    this.testWord = 0;
-    this.overflow = false;
-    this.halt = true;
-    this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
-    this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
-    this.controller = 0;
-    this.skipped = false;
-    this.jumped = false;
-    this.hardwareMultiply = true;
-    this.enableCustomStartAddr = false;
-    this.customStartAddr = 0;
-    this.expectedStartAddr = 0;
-    this.load('snowflake_sa-100.bin');
+    this.reset();
+    this.loadTape('snowflake_sa-100.bin');
   }
 
   stepRun(): void {
@@ -70,6 +51,7 @@ export class PDPService {
       if (!this.halt) {
         if (this.enableCustomStartAddr && this.PC == this.expectedStartAddr) {
           this.PC = this.customStartAddr;
+          this.enableCustomStartAddr = false;
         }
         this.decode();
       }
@@ -102,6 +84,28 @@ export class PDPService {
   continue(): void {
     this.halt = false;
     requestAnimationFrame(() => this.stepRun());
+  }
+
+  reset(): void {
+    this.mem = Array<number>(MEM_SIZE).fill(0);
+    this.PC = 0;
+    this.AC = 0;
+    this.IO = 0;
+    this.MB = 0;
+    this.IR = 0;
+    this.selectedAddress = 0;
+    this.testWord = 0;
+    this.overflow = false;
+    this.halt = true;
+    this.senseSwitches = Array<boolean>(SENSE_SWITCH_COUNT).fill(false);
+    this.programFlags = Array<boolean>(PROGRAM_FLAG_COUNT).fill(false);
+    this.controller = 0;
+    this.skipped = false;
+    this.jumped = false;
+    this.hardwareMultiply = true;
+    this.enableCustomStartAddr = false;
+    this.customStartAddr = 0;
+    this.expectedStartAddr = 0;
   }
 
   decode(): void {
@@ -146,14 +150,14 @@ export class PDPService {
       // Index
       // idx Y
       case instruction.IDX:
-        this.incY(Y, indirect);
+        this.index(Y, indirect);
         this.incPC();
         break;
 
       // Index and Skip if Positive
       // isp Y
       case instruction.ISP:
-        this.incY(Y, indirect);
+        this.index(Y, indirect);
         if (helper.isPositive(this.AC)) {
           this.skipped = true;
           this.incPC();
@@ -240,7 +244,7 @@ export class PDPService {
           if ((word & 0o10000) == 0) {
             this.setPC(word & mask.MASK_12);
           } else {
-            word = this.read(Y, false);
+            word = this.read(word & mask.MASK_12, false);
           }
         } while ((word & 0o10000) != 0);
         this.decode();
@@ -267,6 +271,11 @@ export class PDPService {
         this.jump(Y, indirect);
         break;
 
+      // Call Subroutine
+      // cal Y
+      //
+      // Jump and Deposit Accumulator
+      // jda Y
       case instruction.CAL_JDA:
         this.jumped = true;
         this.write(indirect ? Y : AC_SAVE_ADDR, this.AC, false);
@@ -348,7 +357,7 @@ export class PDPService {
           // Shift In-Out Register Right
           // sir N
           case instruction.SIR:
-            this.setIO(this.shiftLeft(this.IO, helper.onesCount(word)));
+            this.setIO(this.shiftRight(this.IO, helper.onesCount(word)));
             break;
 
           // Shift In-Out Register Left
@@ -395,46 +404,48 @@ export class PDPService {
 
         // Skip on ZERO Accumulator
         // sza
-        if ((Y & instruction.SZA) != 0) {
-          shouldSkip ||= helper.cond(this.AC == 0, indirect);
+        if (Y & instruction.SZA) {
+          shouldSkip ||= this.AC == 0;
         }
 
         // Skip on Plus Accumulator
         // spa
-        if ((Y & instruction.SPA) != 0) {
-          shouldSkip ||= helper.cond(helper.isPositive(this.AC), indirect);
+        if (Y & instruction.SPA) {
+          shouldSkip ||= helper.isPositive(this.AC);
         }
 
         // Skip on Minus Accumulator
         // sma
-        if ((Y & instruction.SMA) != 0) {
-          shouldSkip ||= helper.cond(!helper.isPositive(this.AC), indirect);
+        if (Y & instruction.SMA) {
+          shouldSkip ||= !helper.isPositive(this.AC);
         }
 
         // Skip on ZERO Overflow
         // szo
-        if ((Y & instruction.SZO) != 0) {
-          shouldSkip ||= helper.cond(!this.overflow, indirect);
+        if (Y & instruction.SZO) {
+          shouldSkip ||= !this.overflow;
           this.overflow = false;
         }
 
         // Skip on Plus In-Out Register
         // spi
-        if ((Y & instruction.SPI) != 0) {
-          shouldSkip ||= helper.cond(helper.isPositive(this.IO), indirect);
+        if (Y & instruction.SPI) {
+          shouldSkip ||= helper.isPositive(this.IO);
         }
 
         if (instruction.SZS_RANGE.includes(Y & mask.SZS_MASK)) {
           // Skip on ZERO Switch
           // szs
-          shouldSkip ||= this.senseSwitchSkip(Y, indirect);
-        } else if (instruction.SZF_RANGE.includes(Y & mask.MASK_3)) {
-          // Skip on ZERO Program Flag
-          // szf
-          shouldSkip ||= this.programFlagSkip(Y, indirect);
+          shouldSkip ||= this.senseSwitchSkip(Y);
         }
 
-        if (shouldSkip) {
+        if (instruction.SZF_RANGE.includes(Y & mask.MASK_3)) {
+          // Skip on ZERO Program Flag
+          // szf
+          shouldSkip ||= this.programFlagSkip(Y);
+        }
+
+        if ((shouldSkip && !indirect) || (!shouldSkip && indirect)) {
           this.skipped = true;
           this.incPC();
         }
@@ -451,57 +462,65 @@ export class PDPService {
         }
 
         // Clear Accumulator
-        // CLA
-        if ((Y & instruction.CLA) != 0) {
+        // cla
+        if (Y & instruction.CLA) {
           this.setAC(0);
         }
 
         // Clear In-Out Register
-        // CLI
-        if ((Y & instruction.CLI) != 0) {
+        // cli
+        if (Y & instruction.CLI) {
           this.setIO(0);
         }
 
         // Load Accumulator with Program Counter
-        // LAP
-        if ((Y & instruction.LAP) != 0) {
+        // lap
+        if (Y & instruction.LAP) {
           this.AC |= this.PC;
           this.AC |= helper.boolToBit(this.overflow) << 17;
         }
 
         // Load Accumulator from Test Word
-        // LAT
-        if ((Y & instruction.LAT) != 0) {
+        // lat
+        if (Y & instruction.LAT) {
           this.AC |= this.testWord;
         }
 
         // Complement Accumulator
-        // CMA
-        if ((Y & instruction.CMA) != 0) {
+        // cma
+        if (Y & instruction.CMA) {
           this.setAC(~this.AC);
         }
 
-        if (CLF_RANGE.includes(Y & mask.MASK_4)) {
-          // Clear Selected Program Flag
-          // clf
-          this.clearProgramFlag(Y);
-        } else if (STF_RANGE.includes(Y & mask.MASK_4)) {
-          // Set Selected Program Flag
-          // stf
-          this.setProgramFlag(Y);
+        if (instruction.CLF_STF_RANGE.includes(Y & mask.MASK_3)) {
+          if (Y & 0o10) {
+            // Set Selected Program Flag
+            // stf
+            this.setProgramFlag(Y);
+          } else {
+            // Clear Selected Program Flag
+            // clf
+            this.clearProgramFlag(Y);
+          }
         }
         this.incPC();
         break;
 
       case instruction.IOT:
         switch (Y & mask.MASK_6) {
+          // I/O Wait
+          // ioh (iot i)
           case instruction.IO_WAIT:
             break;
 
+          // Spacewar Controller
+          // iot 11
           case instruction.SW_CONTROLLER:
             this.IO = this.controller;
             break;
 
+          // Display One Point
+          // dpy
           case instruction.DPY:
             this.display.setPixel(this.AC, this.IO);
             break;
@@ -509,7 +528,7 @@ export class PDPService {
           // Read Perforated Tape, Binary
           // rpb
           case instruction.RPB:
-            this.setIO(this.readWord());
+            this.setIO(this.readTapeWord());
             break;
 
           default:
@@ -585,18 +604,15 @@ export class PDPService {
   }
 
   add(value: number): void {
+    const oldAC = this.AC;
     let result = this.AC + value;
     result += (result >> 18) & mask.MASK_1;
-    this.overflow =
-      (helper.isPositive(this.AC) &&
-        helper.isPositive(value) &&
-        !helper.isPositive(result)) ||
-      (!helper.isPositive(this.AC) &&
-        !helper.isPositive(value) &&
-        helper.isPositive(result));
     this.setAC(result);
     if (this.AC == NEG_ZERO) {
       this.AC = 0;
+    }
+    if (helper.overflow(oldAC, value, this.AC)) {
+      this.overflow = true;
     }
   }
 
@@ -619,11 +635,13 @@ export class PDPService {
         this.setIO(0);
       }
     } else {
-      if (this.IO & 1) {
+      const overflow = this.overflow;
+      if (this.IO & mask.MASK_1) {
         this.add(value);
       }
       this.rotateACIORight(1);
       this.AC &= mask.MASK_17;
+      this.overflow = overflow;
     }
   }
 
@@ -659,9 +677,10 @@ export class PDPService {
         this.overflow = true;
       }
     } else {
+      const overflow = this.overflow;
       this.rotateACIOLeft(1);
-      this.IO = (this.IO & 0o777776) | (~helper.sign(this.AC) & mask.MASK_1);
-      if (this.IO & 1) {
+      this.IO ^= mask.MASK_1;
+      if (this.IO & mask.MASK_1) {
         this.subtract(value);
       } else {
         this.add(value + 1);
@@ -669,6 +688,7 @@ export class PDPService {
       if (this.AC == NEG_ZERO) {
         this.AC = 0;
       }
+      this.overflow = overflow;
     }
   }
 
@@ -735,7 +755,7 @@ export class PDPService {
     }
   }
 
-  incY(Y: number, indirect: boolean): void {
+  index(Y: number, indirect: boolean): void {
     this.setAC(this.read(Y, indirect) + 1);
     if (this.AC == NEG_ZERO) {
       this.setAC(0);
@@ -743,33 +763,34 @@ export class PDPService {
     this.write(Y, this.AC, indirect);
   }
 
-  programFlagSkip(Y: number, indirect: boolean): boolean {
+  programFlagSkip(Y: number): boolean {
+    Y &= mask.MASK_3;
     if (Y <= 6) {
-      return helper.cond(!this.programFlags[Y], indirect);
+      return !this.programFlags[Y - 1];
     } else {
       let allFlags = false;
       this.programFlags.forEach((flagValue) => (allFlags ||= flagValue));
-      return helper.cond(!allFlags, indirect);
+      return !allFlags;
     }
   }
 
-  senseSwitchSkip(Y: number, indirect: boolean): boolean {
-    const switchIndex = (Y >> 3) & mask.MASK_1;
-    if (switchIndex <= 6) {
-      return helper.cond(!this.senseSwitches[switchIndex], indirect);
+  senseSwitchSkip(Y: number): boolean {
+    Y = (Y >> 3) & mask.MASK_3;
+    if (Y <= 6) {
+      return !this.senseSwitches[Y - 1];
     } else {
       let allSwitches = false;
       this.senseSwitches.forEach(
         (switchValue) => (allSwitches ||= switchValue)
       );
-      return helper.cond(!allSwitches, indirect);
+      return !allSwitches;
     }
   }
 
   setProgramFlag(Y: number): void {
-    const switchIndex = Y & mask.MASK_3;
-    if (switchIndex <= 6) {
-      this.programFlags[switchIndex] = true;
+    Y &= mask.MASK_3;
+    if (Y <= 6) {
+      this.programFlags[Y - 1] = true;
     } else {
       for (let index = 0; index < this.programFlags.length; index++) {
         this.programFlags[index] = true;
@@ -778,8 +799,9 @@ export class PDPService {
   }
 
   clearProgramFlag(Y: number): void {
+    Y &= mask.MASK_3;
     if (Y <= 6) {
-      this.programFlags[Y] = false;
+      this.programFlags[Y - 1] = false;
     } else {
       for (let index = 0; index < this.programFlags.length; index++) {
         this.programFlags[index] = false;
@@ -803,7 +825,7 @@ export class PDPService {
     this.setPC(this.PC + 1);
   }
 
-  load(tapeName: string): void {
+  loadTape(tapeName: string): void {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', `assets/tapes/${tapeName}`, true);
     xhr.responseType = 'arraybuffer';
@@ -812,9 +834,9 @@ export class PDPService {
       this.tapeBytes = new Uint8Array(xhr.response);
       while (this.tapeIndex < this.tapeBytes.length) {
         if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
-          const instruction = this.readWord();
+          const instruction = this.readTapeWord();
           if ((instruction & 0o770000) == 0o320000) {
-            this.mem[instruction & 0o7777] = this.readWord();
+            this.mem[instruction & 0o7777] = this.readTapeWord();
           } else if ((instruction & 0o770000) == 0o600000) {
             this.setPC(instruction & 0o7777);
             break;
@@ -828,7 +850,7 @@ export class PDPService {
     xhr.send();
   }
 
-  readWord(): number {
+  readTapeWord(): number {
     let word = 0;
     let count = 0;
     while (count < 3 && this.tapeIndex < this.tapeBytes.length) {
@@ -846,17 +868,13 @@ export class PDPService {
   }
 
   loadTapeConfig(tapeConfig: TapeConfig): void {
+    this.reset();
     this.hardwareMultiply = tapeConfig.hardwareMultiply;
-    this.testWord = tapeConfig.testWord != undefined ? tapeConfig.testWord : 0;
+    this.testWord = tapeConfig.testWord;
     this.enableCustomStartAddr =
-      tapeConfig.alternateAddress != undefined ? true : false;
-    this.expectedStartAddr =
-      tapeConfig.startAddress != undefined ? tapeConfig.startAddress : 0;
-    this.customStartAddr =
-      tapeConfig.alternateAddress != undefined
-        ? tapeConfig.alternateAddress
-        : 0;
-    this.halt = true;
-    this.load(tapeConfig.fileName);
+      tapeConfig.expectedStartAddress != tapeConfig.startAddress;
+    this.expectedStartAddr = tapeConfig.expectedStartAddress;
+    this.customStartAddr = tapeConfig.startAddress;
+    this.loadTape(tapeConfig.fileName);
   }
 }

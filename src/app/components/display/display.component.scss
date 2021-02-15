@@ -1,9 +1,17 @@
 #display {
   position: relative;
-  float: right;
   width: 100%;
   height: 100%;
   transition: 0.5s ease-in-out;
+
+  @media screen and (min-width: 768px) {
+    float: right;
+  }
+
+  @media screen and (max-width: 768px) {
+    position: absolute;
+    bottom: 0;
+  }
 }
 
 canvas {
@@ -13,8 +21,19 @@ canvas {
   transform: translate(-50%, -50%);
   max-height: 100%;
   max-width: 80%;
+
+  @media screen and (max-width: 768px) {
+    max-width: 100%;
+    max-height: 80%;
+  }
 }
 
 .shrink {
-  width: 40% !important;
+  @media screen and (min-width: 768px) {
+    width: 40% !important;
+  }
+
+  @media screen and (max-width: 768px) {
+    height: 50% !important;
+  }
 }
