@@ -38,7 +38,9 @@ export class TapeListComponent {
     new TapeConfig('Snowflake (CHM Demo)', 'dpys5.rim'),
     new TapeConfig('Spacewar!', 'spacewar3.1_24-sep-62.bin', false),
   ];
-  selectedTape: TapeConfig = this.tapes[2];
+  selectedTape: TapeConfig = this.tapes.filter(
+    (tape) => tape.name == 'Snowflake'
+  )[0];
 
   constructor(private pdp: PDPService) {}
 

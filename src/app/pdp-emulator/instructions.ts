@@ -99,3 +99,7 @@ export const IO_WAIT = 0o00;
 export const RPB = 0o0002;
 export const DPY = 0o0007;
 export const SW_CONTROLLER = 0o0011;
+
+// Tape
+export const TAPE_STORE = 0o320000;
+export const TAPE_JUMP = 0o600000;

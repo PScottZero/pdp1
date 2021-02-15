@@ -13,3 +13,4 @@ export const CLR_Y = 0o770000;
 export const CLR_INSTR = 0o007777;
 export const INSTR_MASK = 0o770000;
 export const SZS_MASK = 0o000070;
+export const TAPE_MASK = 0x80;

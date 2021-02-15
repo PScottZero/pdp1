@@ -834,11 +834,11 @@ export class PDPService {
       this.tapeBytes = new Uint8Array(xhr.response);
       while (this.tapeIndex < this.tapeBytes.length) {
         if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
-          const instruction = this.readTapeWord();
-          if ((instruction & 0o770000) == 0o320000) {
-            this.mem[instruction & 0o7777] = this.readTapeWord();
-          } else if ((instruction & 0o770000) == 0o600000) {
-            this.setPC(instruction & 0o7777);
+          const instr = this.readTapeWord();
+          if ((instr & mask.INSTR_MASK) == instruction.TAPE_STORE) {
+            this.mem[instr & mask.MASK_12] = this.readTapeWord();
+          } else if ((instr & mask.INSTR_MASK) == instruction.TAPE_JUMP) {
+            this.setPC(instr & mask.MASK_12);
             break;
           }
         } else {
@@ -854,8 +854,8 @@ export class PDPService {
     let word = 0;
     let count = 0;
     while (count < 3 && this.tapeIndex < this.tapeBytes.length) {
-      if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
-        word = (word << 6) | (this.tapeBytes[this.tapeIndex++] & 0o77);
+      if ((this.tapeBytes[this.tapeIndex] & mask.TAPE_MASK) != 0) {
+        word = (word << 6) | (this.tapeBytes[this.tapeIndex++] & mask.MASK_6);
         count++;
       } else {
         this.tapeIndex++;
