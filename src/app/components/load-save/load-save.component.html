@@ -1,8 +1,22 @@
 <div id="load-save">
-    <button id="load-tape" (click)="loadTapeElement.click()">Load Tape</button>
-    <button id="load-memory" (click)="loadMemoryElement.click()">Load Memory</button>
-    <button id="save-memory" (click)="saveMemory()">Save Memory</button>
-    <button id="clear-memory" (click)="clearMemory()">Clear Memory</button>
-    <input id="load-tape-input" type="file" style="display: none" (change)="loadTape()" accept=".rim, .bin"/>
-    <input id="load-memory-input" type="file" style="display: none" (change)="loadMemory()" accept=".json"/>
+  <button id="load-tape" (click)="loadTapeElement.click()">Load Tape</button>
+  <button id="load-memory" (click)="loadMemoryElement.click()">
+    Load Memory
+  </button>
+  <button id="save-memory" (click)="saveMemory()">Save Memory</button>
+  <button id="clear-memory" (click)="clearMemory()">Clear Memory</button>
+  <input
+    id="load-tape-input"
+    type="file"
+    style="display: none"
+    (change)="loadTape()"
+    accept=".rim, .bin"
+  />
+  <input
+    id="load-memory-input"
+    type="file"
+    style="display: none"
+    (change)="loadMemory()"
+    accept=".json"
+  />
 </div>
