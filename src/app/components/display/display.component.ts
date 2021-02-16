@@ -1,8 +1,5 @@
 import { Component, ElementRef, Input, OnInit, ViewChild } from '@angular/core';
-import {
-  DisplayService,
-  DISPLAY_SIZE,
-} from '../../pdp-emulator/display.service';
+import { PDPService, DISPLAY_SIZE } from 'src/app/pdp-emulator/pdp.service';
 
 @Component({
   selector: 'app-display',
@@ -14,12 +11,12 @@ export class DisplayComponent implements OnInit {
   context: CanvasRenderingContext2D;
   @Input() shrinkDisplay: boolean;
 
-  constructor(private display: DisplayService) {}
+  constructor(private pdp: PDPService) {}
 
   ngOnInit(): void {
     this.context = this.canvas.nativeElement.getContext('2d');
     this.context.strokeStyle = 'transparent';
-    this.display.refreshEmitter.subscribe(() => {
+    this.pdp.displayEmitter.subscribe(() => {
       this.refresh();
     });
   }
@@ -27,15 +24,15 @@ export class DisplayComponent implements OnInit {
   refresh(): void {
     this.context.clearRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
     for (let index = 0; index < DISPLAY_SIZE * DISPLAY_SIZE; index++) {
-      if (this.display.data[index] > 0) {
-        this.context.fillStyle = this.fillColor(this.display.data[index]);
+      if (this.pdp.displayData[index] > 0) {
+        this.context.fillStyle = this.fillColor(this.pdp.displayData[index]);
         this.context.fillRect(
           index % DISPLAY_SIZE,
           Math.floor(index / DISPLAY_SIZE),
           2,
           2
         );
-        this.display.data[index] -= 0.025;
+        this.pdp.displayData[index] -= 0.025;
       }
     }
   }

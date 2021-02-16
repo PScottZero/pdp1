@@ -1,0 +1,40 @@
+#load-save {
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows:
+    calc((100% / 4) - (3em / 4em)) calc((100% / 4) - (3em / 4em))
+    calc((100% / 4) - (3em / 4em)) calc((100% / 4) - (3em / 4em));
+  grid-template-areas: 'load-tape' 'load-memory' 'save-memory' 'reset';
+  gap: 1em;
+  width: 100%;
+  height: 100%;
+}
+
+button {
+  width: 100%;
+  height: 100%;
+  outline: none;
+  background: black;
+  color: #aaa;
+  border-radius: 16px;
+  font-size: 28px;
+  font-family: 'Courier New', Courier, monospace;
+  background: #444;
+  transition: 0.2s;
+
+  &:hover {
+    background: #666;
+  }
+}
+
+#load-tape {
+  grid-area: load-tape;
+}
+
+#load-memory {
+  grid-area: load-memory;
+}
+
+#save-memory {
+  grid-area: save-memory;
+}

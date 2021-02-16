@@ -11,12 +11,12 @@
   @media screen and (min-width: 768px) {
     width: 60%;
     height: 100%;
-    grid-template-columns: 100%;
+    grid-template-columns: calc(60% - 1em) calc(40% - 1em);
     grid-template-rows: 4em calc(100% - 24em) 16em;
     grid-template-areas:
-      'header'
-      'console'
-      'tape-list';
+      'header header'
+      'console console'
+      'tape-list load-save';
   }
 
   @media screen and (max-width: 768px) {

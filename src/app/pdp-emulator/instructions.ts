@@ -73,8 +73,6 @@ export const SZF_RANGE = [
 ];
 
 // Operate Group
-// CLF 0o0001 to 0o0007
-// STF 0o0011 to 0o0017
 export const OPERATE_GROUP = 0o76;
 export const CLI = 0o4000;
 export const LAT = 0o2000;

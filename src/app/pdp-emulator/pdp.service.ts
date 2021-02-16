@@ -2,7 +2,6 @@ import { EventEmitter, Injectable } from '@angular/core';
 import * as instruction from './instructions';
 import * as helper from './helperFunctions';
 import * as mask from './masks';
-import { DisplayService } from './display.service';
 import { TapeConfig } from '../components/tape-list/tape-config';
 
 const MEM_SIZE = 0o10000;
@@ -11,17 +10,18 @@ const AC_SAVE_ADDR = 0o100;
 const SENSE_SWITCH_COUNT = 6;
 const PROGRAM_FLAG_COUNT = 6;
 const CYCLE_COUNT = 1667;
+export const DISPLAY_SIZE = 1023;
 
 @Injectable({
   providedIn: 'root',
 })
 export class PDPService {
-  mem: number[]; // 4096 18-bit words
-  PC: number; // Program Counter (12-bit)
-  AC: number; // Accumulator (18-bit)
-  IO: number; // In-Out Register (18-bit)
-  MB: number; // Memory Buffer (18-bit)
-  IR: number; // Instruction Register (5-bit)
+  mem: number[];
+  PC: number;
+  AC: number;
+  IO: number;
+  MB: number;
+  IR: number;
   selectedAddress: number;
   testWord: number;
   overflow: boolean;
@@ -34,47 +34,32 @@ export class PDPService {
   hardwareMultiply: boolean;
   skipped: boolean;
   jumped: boolean;
-  updateEmitter: EventEmitter<void>;
-
   enableCustomStartAddr: boolean;
   customStartAddr: number;
-  expectedStartAddr: number;
+  displayData: number[];
+  consoleEmitter: EventEmitter<void>;
+  displayEmitter: EventEmitter<void>;
 
-  constructor(private display: DisplayService) {
-    this.updateEmitter = new EventEmitter<void>();
+  constructor() {
+    this.consoleEmitter = new EventEmitter<void>();
+    this.displayEmitter = new EventEmitter<void>();
+    this.displayData = Array<number>(DISPLAY_SIZE * DISPLAY_SIZE).fill(0);
     this.reset();
     this.loadTape('snowflake_sa-100.bin');
-  }
-
-  stepRun(): void {
-    for (let _ = 0; _ < CYCLE_COUNT; _++) {
-      if (!this.halt) {
-        if (this.enableCustomStartAddr && this.PC == this.expectedStartAddr) {
-          this.PC = this.customStartAddr;
-          this.enableCustomStartAddr = false;
-        }
-        this.decode();
-      }
-    }
-    this.MB = this.mem[this.PC];
-    this.IR = (this.MB >> 13) & mask.MASK_5;
-    this.updateEmitter.emit();
-    if (!this.halt) {
-      requestAnimationFrame(() => this.stepRun());
-    }
+    this.displayLoop();
   }
 
   step(): void {
     this.decode();
     this.MB = this.mem[this.PC];
     this.IR = (this.MB >> 13) & mask.MASK_5;
-    this.updateEmitter.emit();
+    this.consoleEmitter.emit();
   }
 
   start(): void {
     this.halt = false;
     this.PC = this.selectedAddress;
-    requestAnimationFrame(() => this.stepRun());
+    requestAnimationFrame(() => this.emulationLoop());
   }
 
   stop(): void {
@@ -83,7 +68,30 @@ export class PDPService {
 
   continue(): void {
     this.halt = false;
-    requestAnimationFrame(() => this.stepRun());
+    requestAnimationFrame(() => this.emulationLoop());
+  }
+
+  emulationLoop(): void {
+    for (let _ = 0; _ < CYCLE_COUNT; _++) {
+      if (!this.halt) {
+        if (this.enableCustomStartAddr && this.PC == 0o10) {
+          this.PC = this.customStartAddr;
+          this.enableCustomStartAddr = false;
+        }
+        this.decode();
+      }
+    }
+    this.MB = this.mem[this.PC];
+    this.IR = (this.MB >> 13) & mask.MASK_5;
+    this.consoleEmitter.emit();
+    if (!this.halt) {
+      requestAnimationFrame(() => this.emulationLoop());
+    }
+  }
+
+  displayLoop(): void {
+    this.displayEmitter.emit();
+    requestAnimationFrame(() => this.displayLoop());
   }
 
   reset(): void {
@@ -105,7 +113,6 @@ export class PDPService {
     this.hardwareMultiply = true;
     this.enableCustomStartAddr = false;
     this.customStartAddr = 0;
-    this.expectedStartAddr = 0;
   }
 
   decode(): void {
@@ -522,7 +529,7 @@ export class PDPService {
           // Display One Point
           // dpy
           case instruction.DPY:
-            this.display.setPixel(this.AC, this.IO);
+            this.displayPoint();
             break;
 
           // Read Perforated Tape, Binary
@@ -825,29 +832,48 @@ export class PDPService {
     this.setPC(this.PC + 1);
   }
 
+  displayPoint(): void {
+    let x = (this.AC >> 8) & mask.MASK_10;
+    let y = (this.IO >> 8) & mask.MASK_10;
+
+    if (((x >> 9) & mask.MASK_1) == 1) {
+      x = 511 - (~x & mask.MASK_9);
+    } else {
+      x += 511;
+    }
+    if (((y >> 9) & mask.MASK_1) == 1) {
+      y = 511 + (~y & mask.MASK_9);
+    } else {
+      y = 511 - y;
+    }
+    this.displayData[y * DISPLAY_SIZE + x] = 1;
+  }
+
   loadTape(tapeName: string): void {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', `assets/tapes/${tapeName}`, true);
     xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      this.tapeIndex = 0;
-      this.tapeBytes = new Uint8Array(xhr.response);
-      while (this.tapeIndex < this.tapeBytes.length) {
-        if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
-          const instr = this.readTapeWord();
-          if ((instr & mask.INSTR_MASK) == instruction.TAPE_STORE) {
-            this.mem[instr & mask.MASK_12] = this.readTapeWord();
-          } else if ((instr & mask.INSTR_MASK) == instruction.TAPE_JUMP) {
-            this.setPC(instr & mask.MASK_12);
-            break;
-          }
-        } else {
-          this.tapeIndex++;
-        }
-      }
-      this.continue();
-    };
+    xhr.onload = () => this.parseTape(xhr.response);
     xhr.send();
+  }
+
+  parseTape(buffer: ArrayBuffer): void {
+    this.tapeIndex = 0;
+    this.tapeBytes = new Uint8Array(buffer);
+    while (this.tapeIndex < this.tapeBytes.length) {
+      if ((this.tapeBytes[this.tapeIndex] & 0x80) != 0) {
+        const instr = this.readTapeWord();
+        if ((instr & mask.INSTR_MASK) == instruction.TAPE_STORE) {
+          this.mem[instr & mask.MASK_12] = this.readTapeWord();
+        } else if ((instr & mask.INSTR_MASK) == instruction.TAPE_JUMP) {
+          this.setPC(instr & mask.MASK_12);
+          break;
+        }
+      } else {
+        this.tapeIndex++;
+      }
+    }
+    this.continue();
   }
 
   readTapeWord(): number {
@@ -871,9 +897,7 @@ export class PDPService {
     this.reset();
     this.hardwareMultiply = tapeConfig.hardwareMultiply;
     this.testWord = tapeConfig.testWord;
-    this.enableCustomStartAddr =
-      tapeConfig.expectedStartAddress != tapeConfig.startAddress;
-    this.expectedStartAddr = tapeConfig.expectedStartAddress;
+    this.enableCustomStartAddr = tapeConfig.startAddress != -1;
     this.customStartAddr = tapeConfig.startAddress;
     this.loadTape(tapeConfig.fileName);
   }

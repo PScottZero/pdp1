@@ -1,11 +1,4 @@
-import {
-  Component,
-  ElementRef,
-  OnInit,
-  Output,
-  ViewChild,
-  EventEmitter,
-} from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { PDPService } from '../../pdp-emulator/pdp.service';
 import * as helper from '../../pdp-emulator/helperFunctions';
 
@@ -43,7 +36,7 @@ export class ConsoleComponent implements OnInit {
     this.largeSwitchImage = new Image();
     this.largeSwitchImage.src = 'assets/images/switch_large.svg';
     this.showConsole = false;
-    this.pdp.updateEmitter.subscribe(() => {
+    this.pdp.consoleEmitter.subscribe(() => {
       this.drawState();
     });
     this.switchImage.onload = () => this.drawState();
