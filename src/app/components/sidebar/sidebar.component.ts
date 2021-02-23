@@ -29,4 +29,10 @@ export class SidebarComponent {
     this.expand = true;
     this.shouldResize.emit(this.expand);
   }
+
+  arrowImage(): string {
+    return window.innerWidth < 768
+      ? 'assets/images/arrow_mobile.svg'
+      : 'assets/images/arrow.svg';
+  }
 }
