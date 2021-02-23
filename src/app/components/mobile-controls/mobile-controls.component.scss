@@ -6,9 +6,9 @@
   padding: 1em;
   display: grid;
   grid-template-rows: calc((100vw - 7em) / 6) calc((100vw - 7em) / 6);
-  grid-template-columns: calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc(
-      (100vw - 7em) / 6
-    ) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6);
+  grid-template-columns:
+    calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6)
+    calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6);
   grid-template-areas: 'spacer1 fire1 spacer2 spacer3 fire2 spacer4' 'left1 thrust1 right1 left2 thrust2 right2';
   gap: 1em;
 }
@@ -19,6 +19,12 @@ button {
   height: 100%;
   border-radius: 0.25em;
   outline: none;
+  font-size: 28px;
+  color: white;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 #fire1 {
@@ -27,6 +33,7 @@ button {
 
 #fire2 {
   grid-area: fire2;
+  background: #66666688;
 }
 
 #left1 {
@@ -43,12 +50,15 @@ button {
 
 #left2 {
   grid-area: left2;
+  background: #66666688;
 }
 
 #thrust2 {
   grid-area: thrust2;
+  background: #66666688;
 }
 
 #right2 {
   grid-area: right2;
+  background: #66666688;
 }
