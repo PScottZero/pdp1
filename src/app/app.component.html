@@ -1,2 +1,7 @@
 <app-sidebar (shouldResize)="setSidebarVisible($event)"></app-sidebar>
 <app-display [shrinkDisplay]="showSidebar"></app-display>
+<app-mobile-controls
+  *ngIf="showMobileControls()"
+  (buttonPress)="buttonPress($event)"
+  (buttonRelease)="buttonRelease($event)"
+></app-mobile-controls>

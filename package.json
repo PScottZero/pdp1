@@ -1,6 +1,6 @@
 {
   "name": "pdp1",
-  "version": "0.0.0",
+  "version": "2021.2.22",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",

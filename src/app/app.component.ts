@@ -14,7 +14,24 @@ export class AppComponent {
 
   @HostListener('window:keydown', ['$event'])
   setControllerInput(event: KeyboardEvent): void {
-    switch (event.key.toLowerCase()) {
+    this.buttonPress(event.key);
+  }
+
+  @HostListener('window:keyup', ['$event'])
+  unsetControllerInput(event: KeyboardEvent): void {
+    this.buttonRelease(event.key);
+  }
+
+  setSidebarVisible(visible: boolean): void {
+    this.showSidebar = visible;
+  }
+
+  showMobileControls(): boolean {
+    return window.innerWidth < 768 && this.pdp.tapeName == 'Spacewar!';
+  }
+
+  buttonPress(buttonValue: string): void {
+    switch (buttonValue.toLowerCase()) {
       case 'w':
         this.pdp.controller |= 0o1;
         break;
@@ -42,9 +59,8 @@ export class AppComponent {
     }
   }
 
-  @HostListener('window:keyup', ['$event'])
-  unsetControllerInput(event: KeyboardEvent): void {
-    switch (event.key.toLowerCase()) {
+  buttonRelease(buttonValue: string): void {
+    switch (buttonValue.toLowerCase()) {
       case 'w':
         this.pdp.controller &= ~0o1;
         break;
@@ -70,9 +86,5 @@ export class AppComponent {
         this.pdp.controller &= ~0o400000;
         break;
     }
-  }
-
-  setSidebarVisible(visible: boolean): void {
-    this.showSidebar = visible;
   }
 }

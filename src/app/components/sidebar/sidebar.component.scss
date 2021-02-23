@@ -23,9 +23,10 @@
     width: 100%;
     height: 50%;
     grid-template-columns: 100%;
-    grid-template-rows: 3em calc(100% - 5em);
+    grid-template-rows: 3em 1em calc(100% - 8em);
     grid-template-areas:
       'header'
+      'buttons'
       'tape-list';
   }
 }
@@ -53,8 +54,27 @@
   }
 }
 
-#logo {
+#header {
   grid-area: header;
+
+  @media screen and (max-width: 768px) {
+    text-align: center;
+  }
+}
+
+#button-container {
+  float: right;
+  height: 100%;
+
+  @media screen and (max-width: 768px) {
+    position: absolute;
+    height: 3em;
+    width: calc(100% - 4em);
+    top: 6em;
+  }
+}
+
+#logo {
   height: 100%;
 
   @media screen and (max-width: 768px) {

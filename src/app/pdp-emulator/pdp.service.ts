@@ -28,6 +28,7 @@ export class PDPService {
   halt: boolean;
   senseSwitches: boolean[];
   programFlags: boolean[];
+  tapeName: string;
   tapeBytes: Uint8Array;
   tapeIndex: number;
   controller: number;
@@ -895,6 +896,7 @@ export class PDPService {
 
   loadTapeConfig(tapeConfig: TapeConfig): void {
     this.reset();
+    this.tapeName = tapeConfig.name;
     this.hardwareMultiply = tapeConfig.hardwareMultiply;
     this.testWord = tapeConfig.testWord;
     this.enableCustomStartAddr = tapeConfig.startAddress != -1;

@@ -1,0 +1,54 @@
+#mobile-controls {
+  position: fixed;
+  width: 100%;
+  bottom: 0;
+  box-sizing: border-box;
+  padding: 1em;
+  display: grid;
+  grid-template-rows: calc((100vw - 7em) / 6) calc((100vw - 7em) / 6);
+  grid-template-columns: calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc(
+      (100vw - 7em) / 6
+    ) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6) calc((100vw - 7em) / 6);
+  grid-template-areas: 'spacer1 fire1 spacer2 spacer3 fire2 spacer4' 'left1 thrust1 right1 left2 thrust2 right2';
+  gap: 1em;
+}
+
+button {
+  background: #33333388;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.25em;
+  outline: none;
+}
+
+#fire1 {
+  grid-area: fire1;
+}
+
+#fire2 {
+  grid-area: fire2;
+}
+
+#left1 {
+  grid-area: left1;
+}
+
+#thrust1 {
+  grid-area: thrust1;
+}
+
+#right1 {
+  grid-area: right1;
+}
+
+#left2 {
+  grid-area: left2;
+}
+
+#thrust2 {
+  grid-area: thrust2;
+}
+
+#right2 {
+  grid-area: right2;
+}

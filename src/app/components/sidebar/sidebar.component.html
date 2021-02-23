@@ -4,7 +4,18 @@
   (mouseenter)="unhideConsole()"
   (mouseleave)="hideConsole()"
 >
-  <img id="logo" src="assets/images/logo.svg" alt="Logo" />
+  <div id="header">
+    <img id="logo" src="assets/images/logo.svg" alt="Logo" />
+    <div id="button-container">
+      <app-icon-button
+        *ngFor="let button of buttons"
+        [icon]="button.icon"
+        [link]="button.link"
+        [color]="button.color"
+      >
+      </app-icon-button>
+    </div>
+  </div>
   <app-console></app-console>
   <div id="tab">
     <img

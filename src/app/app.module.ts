@@ -7,6 +7,8 @@ import { DisplayComponent } from './components/display/display.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { TapeListComponent } from './components/tape-list/tape-list.component';
 import { LoadSaveComponent } from './components/load-save/load-save.component';
+import { IconButtonComponent } from './components/icon-button/icon-button.component';
+import { MobileControlsComponent } from './components/mobile-controls/mobile-controls.component';
 
 @NgModule({
   declarations: [
@@ -16,6 +18,8 @@ import { LoadSaveComponent } from './components/load-save/load-save.component';
     SidebarComponent,
     TapeListComponent,
     LoadSaveComponent,
+    IconButtonComponent,
+    MobileControlsComponent,
   ],
   imports: [BrowserModule],
   providers: [],
