@@ -34,8 +34,10 @@ export class LoadSaveComponent implements OnInit {
     const file = this.loadMemoryElement.files[0];
     const fileReader = new FileReader();
     this.pdp.reset();
-    fileReader.onload = () =>
-      (this.pdp.mem = JSON.parse(fileReader.result as string) as number[]);
+    fileReader.onload = () => {
+      this.pdp.mem = JSON.parse(fileReader.result as string) as number[];
+      this.pdp.consoleEmitter.emit();
+    };
     fileReader.readAsText(file);
   }
 
