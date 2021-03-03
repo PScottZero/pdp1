@@ -114,6 +114,7 @@ export class PDPService {
     this.hardwareMultiply = true;
     this.enableCustomStartAddr = false;
     this.customStartAddr = 0;
+    this.consoleEmitter.emit();
   }
 
   decode(): void {
